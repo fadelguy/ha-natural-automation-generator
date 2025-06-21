@@ -1,0 +1,10 @@
+{
+  "name": "Natural Automation Generator",
+  "content_in_root": false,
+  "filename": "natural_automation_generator",
+  "country": ["IL", "US", "GB"],
+  "homeassistant": "2024.6.0",
+  "persistent_directory": false,
+  "render_readme": true,
+  "zip_release": false
+}
