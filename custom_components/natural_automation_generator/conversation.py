@@ -57,7 +57,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             "name": "Natural Automation Generator",
             "manufacturer": "Natural Automation Generator",
             "model": "Automation Generator",
-            "sw_version": "1.1.1",
+            "sw_version": "1.1.2",
         }
 
     async def _async_handle_message(
@@ -85,7 +85,12 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
                 if result["success"]:
                     # Parse YAML and save automation
                     try:
+                        _LOGGER.debug("Parsing YAML config: %s", result["yaml_config"][:500])
                         automation_config = yaml.safe_load(result["yaml_config"])
+                        
+                        if not isinstance(automation_config, dict):
+                            raise ValueError("Generated YAML is not a dictionary/object")
+                        
                         await self._save_automation(automation_config)
                         
                         response_text = f"✅ I've created the automation successfully!\n\n**Generated automation:**\n```yaml\n{result['yaml_config']}\n```\n\nThe automation has been saved and is now active."
@@ -100,7 +105,19 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
                         
                     except yaml.YAMLError as err:
                         _LOGGER.error("Invalid YAML generated: %s", err)
-                        response_text = f"❌ I generated invalid automation YAML. Error: {err}\n\nPlease try rephrasing your request."
+                        _LOGGER.error("YAML content was: %s", result["yaml_config"])
+                        response_text = f"❌ I generated invalid automation YAML. Error: {err}\n\nRAW YAML:\n```\n{result['yaml_config']}\n```\n\nPlease try rephrasing your request."
+                        
+                        chat_log.async_add_assistant_content_without_tools(
+                            conversation.AssistantContent(
+                                agent_id=user_input.agent_id,
+                                content=response_text,
+                            )
+                        )
+                    except Exception as err:
+                        _LOGGER.error("Error processing automation: %s", err)
+                        _LOGGER.error("YAML content was: %s", result["yaml_config"])
+                        response_text = f"❌ Error processing automation: {err}\n\nRAW YAML:\n```\n{result['yaml_config']}\n```\n\nPlease try rephrasing your request."
                         
                         chat_log.async_add_assistant_content_without_tools(
                             conversation.AssistantContent(

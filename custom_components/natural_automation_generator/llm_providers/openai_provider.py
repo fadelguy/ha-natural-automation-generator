@@ -71,6 +71,9 @@ class OpenAIProvider(BaseLLMProvider):
             # Extract YAML from the response
             yaml_config = self._extract_yaml_from_response(content)
             
+            _LOGGER.debug("Raw OpenAI response: %s", content)
+            _LOGGER.debug("Extracted YAML: %s", yaml_config)
+            
             # Validate YAML
             self._validate_yaml(yaml_config)
             
@@ -83,34 +86,58 @@ class OpenAIProvider(BaseLLMProvider):
 
     def _extract_yaml_from_response(self, response: str) -> str:
         """Extract YAML configuration from LLM response."""
-        # Look for YAML code blocks
+        _LOGGER.debug("Extracting YAML from response: %s", response[:200] + "..." if len(response) > 200 else response)
+        
+        # Look for YAML code blocks first
         yaml_match = re.search(r'```(?:yaml|yml)?\s*\n(.*?)\n```', response, re.DOTALL)
         if yaml_match:
-            return yaml_match.group(1).strip()
+            extracted = yaml_match.group(1).strip()
+            _LOGGER.debug("Found YAML in code block")
+            return extracted
         
         # Look for automation structure without code blocks
         if "alias:" in response and ("trigger:" in response or "action:" in response):
-            # Clean up the response to extract just the YAML part
-            lines = response.split('\n')
-            yaml_lines = []
-            in_yaml = False
-            
-            for line in lines:
-                if line.strip().startswith('alias:') or line.strip().startswith('-'):
-                    in_yaml = True
-                elif in_yaml and line.strip() == '':
-                    continue
-                elif in_yaml and not line.startswith(' ') and ':' not in line:
-                    break
+            # Find the start of the YAML (first occurrence of 'alias:')
+            alias_start = response.find('alias:')
+            if alias_start != -1:
+                # Extract everything from 'alias:' onwards
+                yaml_part = response[alias_start:].strip()
                 
-                if in_yaml:
-                    yaml_lines.append(line)
-            
-            if yaml_lines:
-                return '\n'.join(yaml_lines)
+                # Try to clean up the YAML by removing non-YAML text after the automation
+                lines = yaml_part.split('\n')
+                yaml_lines = []
+                
+                for line in lines:
+                    stripped = line.strip()
+                    
+                    # Skip empty lines
+                    if not stripped:
+                        yaml_lines.append(line)
+                        continue
+                    
+                    # If it looks like YAML (starts with key: or - or has proper indentation)
+                    if (
+                        ':' in stripped or 
+                        stripped.startswith('-') or 
+                        line.startswith('  ') or
+                        stripped.startswith('alias:') or
+                        stripped.startswith('trigger:') or
+                        stripped.startswith('action:') or
+                        stripped.startswith('condition:')
+                    ):
+                        yaml_lines.append(line)
+                    else:
+                        # If we encounter non-YAML text after starting YAML, stop
+                        if yaml_lines:
+                            break
+                
+                if yaml_lines:
+                    extracted = '\n'.join(yaml_lines).strip()
+                    _LOGGER.debug("Extracted YAML from automation structure")
+                    return extracted
         
-        # If no clear YAML structure found, return the response as-is
-        # and let the validation catch any issues
+        # Last resort - return the whole response and let validation handle it
+        _LOGGER.debug("Could not extract YAML properly, returning full response")
         return response.strip()
 
     def _validate_yaml(self, yaml_content: str) -> None:
