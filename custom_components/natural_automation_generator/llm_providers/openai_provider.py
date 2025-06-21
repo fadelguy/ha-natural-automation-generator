@@ -98,7 +98,7 @@ class OpenAIProvider(BaseLLMProvider):
 
     def _extract_yaml_from_response(self, response: str) -> str:
         """Extract YAML configuration from LLM response."""
-        _LOGGER.debug("Extracting YAML from response: %s", response[:200] + "..." if len(response) > 200 else response)
+        _LOGGER.debug("Extracting YAML from response: %s", response[:300] + "..." if len(response) > 300 else response)
         
         # Look for YAML code blocks first
         yaml_match = re.search(r'```(?:yaml|yml)?\s*\n(.*?)\n```', response, re.DOTALL)
@@ -106,6 +106,14 @@ class OpenAIProvider(BaseLLMProvider):
             extracted = yaml_match.group(1).strip()
             _LOGGER.debug("Found YAML in code block")
             return extracted
+        
+        # Check if the response looks like compressed YAML (missing line breaks)
+        if "alias:" in response and "trigger:" in response and "action:" in response:
+            # Try to fix compressed YAML by adding line breaks
+            fixed_yaml = self._fix_compressed_yaml(response)
+            if fixed_yaml != response:
+                _LOGGER.debug("Fixed compressed YAML")
+                return fixed_yaml
         
         # Look for automation structure without code blocks
         if "alias:" in response and ("trigger:" in response or "action:" in response):
@@ -161,6 +169,58 @@ class OpenAIProvider(BaseLLMProvider):
         # Last resort - return the whole response and let validation handle it
         _LOGGER.debug("Could not extract YAML properly, returning full response")
         return response.strip()
+
+    def _fix_compressed_yaml(self, yaml_text: str) -> str:
+        """Fix compressed YAML by adding proper line breaks and indentation."""
+        _LOGGER.debug("Attempting to fix compressed YAML: %s", yaml_text)
+        
+        # Common patterns that should be on new lines
+        patterns = [
+            (r'(\w+:)\s*([a-zA-Z])', r'\1\n  \2'),  # key: value -> key:\n  value
+            (r'\s+trigger:\s*-', '\ntrigger:\n  -'),  # trigger: - -> trigger:\n  -
+            (r'\s+action:\s*-', '\naction:\n  -'),   # action: - -> action:\n  -
+            (r'\s+condition:\s*-', '\ncondition:\n  -'),  # condition: - -> condition:\n  -
+            (r'\s+platform:\s*(\w+)', r'\n    platform: \1'),  # platform: word -> \n    platform: word
+            (r'\s+service:\s*(\S+)', r'\n    service: \1'),   # service: word -> \n    service: word
+            (r'\s+entity_id:\s*(\S+)', r'\n      entity_id: \1'),  # entity_id: word -> \n      entity_id: word
+            (r'\s+at:\s*"([^"]+)"', r'\n    at: "\1"'),      # at: "time" -> \n    at: "time"
+            (r'\s+target:\s*entity_id:', '\n    target:\n      entity_id:'),  # target: entity_id: -> target:\n      entity_id:
+        ]
+        
+        fixed = yaml_text.strip()
+        
+        # Apply patterns
+        for pattern, replacement in patterns:
+            fixed = re.sub(pattern, replacement, fixed)
+        
+        # Clean up extra spaces and ensure proper structure
+        lines = fixed.split('\n')
+        cleaned_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+                
+            # Determine proper indentation
+            if stripped.startswith('alias:') or stripped.startswith('trigger:') or stripped.startswith('action:') or stripped.startswith('condition:'):
+                cleaned_lines.append(stripped)
+            elif stripped.startswith('- platform:') or stripped.startswith('- service:'):
+                cleaned_lines.append('  ' + stripped)
+            elif stripped.startswith('platform:') or stripped.startswith('service:') or stripped.startswith('target:') or stripped.startswith('at:'):
+                cleaned_lines.append('    ' + stripped)
+            elif stripped.startswith('entity_id:'):
+                cleaned_lines.append('      ' + stripped)
+            else:
+                # Keep original indentation if it looks right
+                if line.startswith('  ') or line.startswith('    ') or line.startswith('      '):
+                    cleaned_lines.append(line)
+                else:
+                    cleaned_lines.append('  ' + stripped)
+        
+        result = '\n'.join(cleaned_lines)
+        _LOGGER.debug("Fixed YAML result: %s", result)
+        return result
 
     def _validate_yaml(self, yaml_content: str) -> None:
         """Validate that the generated content is valid YAML."""

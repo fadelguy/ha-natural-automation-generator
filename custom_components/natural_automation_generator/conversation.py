@@ -123,7 +123,28 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
                     except Exception as err:
                         _LOGGER.error("Error processing automation: %s", err)
                         _LOGGER.error("YAML content was: %s", result["yaml_config"])
-                        response_text = f"❌ Error processing automation: {err}\n\nRAW YAML:\n```\n{result['yaml_config']}\n```\n\nPlease try rephrasing your request."
+                        
+                        # Try to fix the YAML and parse again
+                        try:
+                            from .llm_providers.openai_provider import OpenAIProvider
+                            provider = OpenAIProvider(self.hass, self._config_entry)
+                            fixed_yaml = provider._fix_compressed_yaml(result["yaml_config"])
+                            automation_config = yaml.safe_load(fixed_yaml)
+                            
+                            if isinstance(automation_config, dict):
+                                await self._save_automation(automation_config)
+                                automation_name = automation_config.get('alias', 'New Automation')
+                                response_text = f"✅ **Automation Created Successfully!** (After fixing YAML formatting)\n\n" \
+                                               f"**Name:** {automation_name}\n" \
+                                               f"**Description:** {result['description']}\n\n" \
+                                               f"**Fixed YAML:**\n```yaml\n{fixed_yaml}\n```\n\n" \
+                                               f"🎉 The automation has been saved to your `automations.yaml` file and is now active!"
+                            else:
+                                raise ValueError("Still not a valid automation after fixing")
+                                
+                        except Exception as fix_err:
+                            _LOGGER.error("Failed to fix YAML: %s", fix_err)
+                            response_text = f"❌ Error processing automation: {err}\n\nRAW YAML:\n```\n{result['yaml_config']}\n```\n\nPlease try rephrasing your request with more specific details."
                         
                         chat_log.async_add_assistant_content_without_tools(
                             conversation.AssistantContent(
