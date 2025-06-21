@@ -4,17 +4,18 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/fadelguy/ha-natural-automation-generator)](https://github.com/fadelguy/ha-natural-automation-generator/releases)
 [![GitHub issues](https://img.shields.io/github/issues/fadelguy/ha-natural-automation-generator)](https://github.com/fadelguy/ha-natural-automation-generator/issues)
 
-Generate Home Assistant automations using natural language with AI/LLM providers. Currently supports OpenAI ChatGPT (Google Gemini support coming soon).
+Generate Home Assistant automations through natural language conversations! Chat with your Home Assistant like you would with Assist, and create automations instantly. Currently supports OpenAI ChatGPT (Google Gemini support coming soon).
 
 ## Features
 
+- 💬 **Chat Interface**: Natural conversation interface like Home Assistant Assist
 - 🤖 **AI-Powered**: Create automations using natural language descriptions
 - 🔌 **LLM Provider**: Support for OpenAI ChatGPT (Google Gemini coming soon)
 - 🏠 **Entity Discovery**: Automatically discovers all your Home Assistant entities and areas
 - ✅ **YAML Validation**: Validates generated automations before saving
-- 🔍 **Preview Mode**: Preview automations before creating them
-- 🛠️ **Easy Configuration**: Simple setup through Home Assistant UI
 - 📝 **Automatic Saving**: Saves automations directly to your `automations.yaml` file
+- 🎙️ **Voice Support**: Works with Home Assistant voice assistants
+- 🌐 **Multi-language**: Supports English and Hebrew
 
 ## Installation
 
@@ -46,6 +47,35 @@ Generate Home Assistant automations using natural language with AI/LLM providers
    - **OpenAI**: Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
 6. Complete the setup
 
+## How to Use
+
+### Chat Interface (Recommended)
+
+After installation, the Natural Automation Generator appears as a **Conversation Agent** in Home Assistant:
+
+1. **Go to Settings → Voice Assistants**
+2. **Create a new Assistant** or edit an existing one
+3. **Choose "Natural Automation Generator"** as the Conversation Agent
+4. **Test it**: Click the "Start Conversation" button and chat!
+
+### Example Conversations
+
+💬 **You**: "Create an automation to turn on bathroom light at midnight"
+🤖 **Assistant**: "✅ I've created the automation successfully! [Shows YAML] The automation has been saved and is now active."
+
+💬 **You**: "Make an automation for motion detection in hallway"  
+🤖 **Assistant**: "✅ I've created the automation successfully! [Shows YAML] The automation has been saved and is now active."
+
+💬 **You**: "List my entities"
+🤖 **Assistant**: "📋 **Your Home Assistant entities:** [Shows all your lights, sensors, etc.]"
+
+### Voice Commands
+
+You can also use voice commands if you have a voice assistant set up:
+
+- "Hey Home Assistant, create an automation to turn off lights when I leave"
+- "Hey Home Assistant, make an automation for bedtime routine"
+
 ### Configuration Options
 
 After setup, you can configure:
@@ -54,41 +84,11 @@ After setup, you can configure:
 - **Max Tokens**: Maximum response length (100-4000)
 - **Temperature**: Response creativity (0.0-1.0, lower = more deterministic)
 
-## Usage
+## Advanced Usage
 
-### Service Calls
+### Natural Language Examples
 
-The integration provides three services:
-
-#### `natural_automation_generator.create_automation`
-
-Create and save an automation from a natural language description.
-
-```yaml
-service: natural_automation_generator.create_automation
-data:
-  description: "Turn on the bathroom light every day at midnight for 10 minutes"
-  automation_name: "Bathroom Night Light" # Optional
-  preview_only: false # Optional, default: false
-```
-
-#### `natural_automation_generator.preview_automation`
-
-Preview an automation without saving it.
-
-```yaml
-service: natural_automation_generator.preview_automation
-data:
-  description: "Turn off all lights when I leave home"
-```
-
-#### `natural_automation_generator.list_entities`
-
-List all available entities and areas for reference.
-
-```yaml
-service: natural_automation_generator.list_entities
-```
+Here are some example phrases you can use in your conversations:
 
 ### Example Descriptions
 
@@ -100,13 +100,13 @@ Here are some example natural language descriptions you can use:
 - **Device states**: "Send a notification when the washing machine finishes"
 - **Complex scenarios**: "If it's after sunset and someone opens the front door, turn on the porch light for 5 minutes"
 
-### Events
+### Chat Commands
 
-The integration fires events for automation results:
+You can use these types of commands in the chat:
 
-- `natural_automation_generator_automation_generated`: Fired when an automation is created
-- `natural_automation_generator_automation_previewed`: Fired when an automation is previewed
-- `natural_automation_generator_entities_listed`: Fired when entities are listed
+- **Create automations**: "Create", "Make", "Generate", "צור", "יצור", "עשה"
+- **List entities**: "List entities", "Show devices", "רשימת מכשירים"
+- **General help**: Any other message will show help and examples
 
 ### Automation Examples
 

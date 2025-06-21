@@ -15,7 +15,7 @@ from .services import async_setup_services
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = []
+PLATFORMS: list[Platform] = [Platform.CONVERSATION]
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -33,8 +33,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
     
-    # Setup services
-    await async_setup_services(hass)
+    # Setup services (optional - conversation interface is the main way)
+    # await async_setup_services(hass)
     
     # Forward setup to platforms if any
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
