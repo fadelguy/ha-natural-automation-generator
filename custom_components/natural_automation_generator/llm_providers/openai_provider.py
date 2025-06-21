@@ -108,7 +108,7 @@ class OpenAIProvider(BaseLLMProvider):
             return extracted
         
         # Check if the response looks like compressed YAML (missing line breaks)
-        if "alias:" in response and "trigger:" in response and "action:" in response:
+        if "alias:" in response and ("trigger:" in response or "triggers:" in response) and ("action:" in response or "actions:" in response):
             # First, check if it's a list format (starts with -)
             cleaned_response = response.strip()
             if cleaned_response.startswith('-'):
@@ -123,7 +123,7 @@ class OpenAIProvider(BaseLLMProvider):
                 return fixed_yaml
         
         # Look for automation structure without code blocks
-        if "alias:" in response and ("trigger:" in response or "action:" in response):
+        if "alias:" in response and ("trigger:" in response or "triggers:" in response or "action:" in response or "actions:" in response):
             # Find the start of the YAML (first occurrence of 'alias:')
             alias_start = response.find('alias:')
             if alias_start != -1:
@@ -148,8 +148,11 @@ class OpenAIProvider(BaseLLMProvider):
                     yaml_indicators = [
                         stripped.startswith('alias:'),
                         stripped.startswith('trigger:'),
+                        stripped.startswith('triggers:'),
                         stripped.startswith('action:'),
+                        stripped.startswith('actions:'),
                         stripped.startswith('condition:'),
+                        stripped.startswith('conditions:'),
                         stripped.startswith('- '),
                         stripped.startswith('platform:'),
                         stripped.startswith('service:'),
@@ -281,9 +284,18 @@ class OpenAIProvider(BaseLLMProvider):
                 if not isinstance(parsed, dict):
                     raise ValueError(f"YAML must represent a dictionary/object, got {type(parsed)}: {parsed}")
             
-            # Check for required automation fields
-            required_fields = ["alias", "trigger", "action"]
-            missing_fields = [field for field in required_fields if field not in parsed]
+            # Check for required automation fields - support both old and new formats
+            # Since we convert trigger->triggers and action->actions in conversation.py
+            required_fields = ["alias"]
+            triggers_ok = "triggers" in parsed or "trigger" in parsed
+            actions_ok = "actions" in parsed or "action" in parsed
+            
+            missing_fields = []
+            if not triggers_ok:
+                missing_fields.append("triggers/trigger")
+            if not actions_ok:
+                missing_fields.append("actions/action")
+                
             if missing_fields:
                 raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
             

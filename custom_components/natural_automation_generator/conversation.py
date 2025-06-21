@@ -57,7 +57,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             "name": "Natural Automation Generator",
             "manufacturer": "Natural Automation Generator",
             "model": "Automation Generator",
-            "sw_version": "1.2.1",
+            "sw_version": "1.2.2",
         }
 
     async def _async_handle_message(
