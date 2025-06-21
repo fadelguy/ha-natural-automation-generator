@@ -68,7 +68,7 @@ IMPORTANT RULES:
 10. Be specific about entity IDs - use exact names provided
 11. Add meaningful descriptions and aliases
 12. Generate only a SINGLE automation object (not a list)
-13. DO NOT include an "id" field - it will be generated automatically
+13. Always include a unique "id" field (8-12 characters, no spaces)
 
 AVAILABLE ENTITIES:
 {entities}
@@ -77,6 +77,7 @@ AVAILABLE AREAS:
 {areas}
 
 EXAMPLE AUTOMATION FORMAT (this is what you should return):
+id: "hello_world_123"
 alias: "Hello world"
 triggers:
   - trigger: state
@@ -93,6 +94,7 @@ actions:
   - action: light.turn_on
 
 ANOTHER EXAMPLE:
+id: "bathroom_midnight"
 alias: "Turn on bathroom light at midnight"
 triggers:
   - platform: time
