@@ -109,9 +109,16 @@ class OpenAIProvider(BaseLLMProvider):
         
         # Check if the response looks like compressed YAML (missing line breaks)
         if "alias:" in response and "trigger:" in response and "action:" in response:
+            # First, check if it's a list format (starts with -)
+            cleaned_response = response.strip()
+            if cleaned_response.startswith('-'):
+                _LOGGER.debug("Detected list format, extracting first automation")
+                # Remove the leading dash and treat as single automation
+                cleaned_response = cleaned_response[1:].strip()
+            
             # Try to fix compressed YAML by adding line breaks
-            fixed_yaml = self._fix_compressed_yaml(response)
-            if fixed_yaml != response:
+            fixed_yaml = self._fix_compressed_yaml(cleaned_response)
+            if fixed_yaml != cleaned_response:
                 _LOGGER.debug("Fixed compressed YAML")
                 return fixed_yaml
         
@@ -174,51 +181,72 @@ class OpenAIProvider(BaseLLMProvider):
         """Fix compressed YAML by adding proper line breaks and indentation."""
         _LOGGER.debug("Attempting to fix compressed YAML: %s", yaml_text)
         
-        # Common patterns that should be on new lines
-        patterns = [
-            (r'(\w+:)\s*([a-zA-Z])', r'\1\n  \2'),  # key: value -> key:\n  value
-            (r'\s+trigger:\s*-', '\ntrigger:\n  -'),  # trigger: - -> trigger:\n  -
-            (r'\s+action:\s*-', '\naction:\n  -'),   # action: - -> action:\n  -
-            (r'\s+condition:\s*-', '\ncondition:\n  -'),  # condition: - -> condition:\n  -
-            (r'\s+platform:\s*(\w+)', r'\n    platform: \1'),  # platform: word -> \n    platform: word
-            (r'\s+service:\s*(\S+)', r'\n    service: \1'),   # service: word -> \n    service: word
-            (r'\s+entity_id:\s*(\S+)', r'\n      entity_id: \1'),  # entity_id: word -> \n      entity_id: word
-            (r'\s+at:\s*"([^"]+)"', r'\n    at: "\1"'),      # at: "time" -> \n    at: "time"
-            (r'\s+target:\s*entity_id:', '\n    target:\n      entity_id:'),  # target: entity_id: -> target:\n      entity_id:
-        ]
-        
+        # Start with clean input
         fixed = yaml_text.strip()
         
-        # Apply patterns
-        for pattern, replacement in patterns:
-            fixed = re.sub(pattern, replacement, fixed)
+        # Split into key sections using regex to preserve order
+        # Look for main keys: alias, trigger, action, condition
+        sections = {}
         
-        # Clean up extra spaces and ensure proper structure
-        lines = fixed.split('\n')
-        cleaned_lines = []
+        # Extract alias
+        alias_match = re.search(r'alias:\s*"([^"]+)"', fixed)
+        if alias_match:
+            sections['alias'] = alias_match.group(1)
+            
+        # Extract trigger section
+        trigger_match = re.search(r'trigger:\s*-\s*platform:\s*(\w+)(?:\s+at:\s*"([^"]+)")?', fixed)
+        if trigger_match:
+            platform = trigger_match.group(1)
+            at_time = trigger_match.group(2)
+            sections['trigger'] = {
+                'platform': platform,
+                'at': at_time
+            }
         
-        for line in lines:
-            stripped = line.strip()
-            if not stripped:
-                continue
+        # Extract action section  
+        action_match = re.search(r'action:\s*-\s*service:\s*(\S+)(?:\s+target:\s*entity_id:\s*(\S+))?', fixed)
+        if action_match:
+            service = action_match.group(1)
+            entity_id = action_match.group(2)
+            sections['action'] = {
+                'service': service,
+                'entity_id': entity_id
+            }
+        
+        # Rebuild YAML with proper formatting
+        result_lines = []
+        
+        if 'alias' in sections:
+            result_lines.append(f'alias: "{sections["alias"]}"')
+            
+        if 'trigger' in sections:
+            result_lines.append('trigger:')
+            result_lines.append(f'  - platform: {sections["trigger"]["platform"]}')
+            if sections["trigger"]["at"]:
+                result_lines.append(f'    at: "{sections["trigger"]["at"]}"')
                 
-            # Determine proper indentation
-            if stripped.startswith('alias:') or stripped.startswith('trigger:') or stripped.startswith('action:') or stripped.startswith('condition:'):
-                cleaned_lines.append(stripped)
-            elif stripped.startswith('- platform:') or stripped.startswith('- service:'):
-                cleaned_lines.append('  ' + stripped)
-            elif stripped.startswith('platform:') or stripped.startswith('service:') or stripped.startswith('target:') or stripped.startswith('at:'):
-                cleaned_lines.append('    ' + stripped)
-            elif stripped.startswith('entity_id:'):
-                cleaned_lines.append('      ' + stripped)
-            else:
-                # Keep original indentation if it looks right
-                if line.startswith('  ') or line.startswith('    ') or line.startswith('      '):
-                    cleaned_lines.append(line)
-                else:
-                    cleaned_lines.append('  ' + stripped)
+        if 'action' in sections:
+            result_lines.append('action:')
+            result_lines.append(f'  - service: {sections["action"]["service"]}')
+            if sections["action"]["entity_id"]:
+                result_lines.append('    target:')
+                result_lines.append(f'      entity_id: {sections["action"]["entity_id"]}')
         
-        result = '\n'.join(cleaned_lines)
+        result = '\n'.join(result_lines)
+        
+        # If we couldn't parse properly, return original with basic line breaks
+        if not result_lines or len(result_lines) < 3:
+            _LOGGER.debug("Could not parse sections properly, applying basic formatting")
+            # Basic pattern replacement as fallback
+            fallback = fixed
+            fallback = re.sub(r'\s+trigger:\s*-\s*', '\ntrigger:\n  - ', fallback)
+            fallback = re.sub(r'\s+action:\s*-\s*', '\naction:\n  - ', fallback)
+            fallback = re.sub(r'\s+platform:\s*', '\n    platform: ', fallback)
+            fallback = re.sub(r'\s+service:\s*', '\n    service: ', fallback)
+            fallback = re.sub(r'\s+at:\s*', '\n    at: ', fallback)
+            fallback = re.sub(r'\s+target:\s*entity_id:\s*', '\n    target:\n      entity_id: ', fallback)
+            result = fallback
+            
         _LOGGER.debug("Fixed YAML result: %s", result)
         return result
 
