@@ -145,25 +145,4 @@ class NaturalAutomationGeneratorCoordinator:
                 "description": description,
             }
 
-    async def validate_automation_config(self, config: dict[str, Any]) -> bool:
-        """Validate the generated automation configuration."""
-        try:
-            # Basic validation - check required fields
-            required_fields = ["alias", "trigger", "action"]
-            for field in required_fields:
-                if field not in config:
-                    _LOGGER.error("Missing required field: %s", field)
-                    return False
-            
-            # Validate trigger structure
-            if not isinstance(config["trigger"], list):
-                config["trigger"] = [config["trigger"]]
-            
-            # Validate action structure
-            if not isinstance(config["action"], list):
-                config["action"] = [config["action"]]
-            
-            return True
-        except Exception as err:
-            _LOGGER.error("Automation validation failed: %s", err)
-            return False 
+ 

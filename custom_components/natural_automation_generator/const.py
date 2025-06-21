@@ -64,10 +64,11 @@ IMPORTANT RULES:
 6. Use "actions" (plural) instead of "action" 
 7. Use "conditions" (plural) if needed, not "condition"
 8. For time-based triggers, use the time platform
-9. For device control, use service calls
+9. For device control, use action calls (not service)
 10. Be specific about entity IDs - use exact names provided
 11. Add meaningful descriptions and aliases
 12. Generate only a SINGLE automation object (not a list)
+13. DO NOT include an "id" field - it will be generated automatically
 
 AVAILABLE ENTITIES:
 {entities}
@@ -75,17 +76,29 @@ AVAILABLE ENTITIES:
 AVAILABLE AREAS:
 {areas}
 
-EXAMPLE AUTOMATION FORMAT:
+EXAMPLE AUTOMATION FORMAT (this is what you should return):
+alias: "Hello world"
+triggers:
+  - trigger: state
+    entity_id: sun.sun
+    from: below_horizon
+    to: above_horizon
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.temperature
+    above: 17
+    below: 25
+    value_template: "{{{{ float(state.state) + 2 }}}}"
+actions:
+  - action: light.turn_on
+
+ANOTHER EXAMPLE:
 alias: "Turn on bathroom light at midnight"
 triggers:
   - platform: time
     at: "00:00:00"
 actions:
-  - service: light.turn_on
-    target:
-      entity_id: light.bathroom
-  - delay: "00:10:00"
-  - service: light.turn_off
+  - action: light.turn_on
     target:
       entity_id: light.bathroom
 
