@@ -4,12 +4,12 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/fadelguy/ha-natural-automation-generator)](https://github.com/fadelguy/ha-natural-automation-generator/releases)
 [![GitHub issues](https://img.shields.io/github/issues/fadelguy/ha-natural-automation-generator)](https://github.com/fadelguy/ha-natural-automation-generator/issues)
 
-Generate Home Assistant automations using natural language with AI/LLM providers like OpenAI ChatGPT and Google Gemini.
+Generate Home Assistant automations using natural language with AI/LLM providers. Currently supports OpenAI ChatGPT (Google Gemini support coming soon).
 
 ## Features
 
 - 🤖 **AI-Powered**: Create automations using natural language descriptions
-- 🔌 **Multiple LLM Providers**: Support for OpenAI ChatGPT and Google Gemini
+- 🔌 **LLM Provider**: Support for OpenAI ChatGPT (Google Gemini coming soon)
 - 🏠 **Entity Discovery**: Automatically discovers all your Home Assistant entities and areas
 - ✅ **YAML Validation**: Validates generated automations before saving
 - 🔍 **Preview Mode**: Preview automations before creating them
@@ -41,10 +41,9 @@ Generate Home Assistant automations using natural language with AI/LLM providers
 1. Go to **Configuration** → **Integrations**
 2. Click **Add Integration**
 3. Search for "Natural Automation Generator"
-4. Choose your LLM provider (OpenAI or Google Gemini)
-5. Enter your API key:
+4. Choose OpenAI as your LLM provider
+5. Enter your OpenAI API key:
    - **OpenAI**: Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
-   - **Google Gemini**: Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
 6. Complete the setup
 
 ### Configuration Options
@@ -168,11 +167,10 @@ action:
 - Pricing varies by model (GPT-4o is recommended)
 - Typical cost: $0.01-0.05 per automation generation
 
-### Google Gemini
+### Google Gemini (Coming Soon)
 
-- Sign up at [Google AI Studio](https://makersuite.google.com/)
-- Generous free tier available
-- Gemini 1.5 Flash is recommended for cost-effectiveness
+- Support for Google Gemini will be added in a future update
+- Currently disabled due to dependency conflicts with Home Assistant
 
 ## Troubleshooting
 
@@ -185,7 +183,7 @@ action:
 
 2. **"Generation failed"**
 
-   - Check your API key and quota
+   - Check your OpenAI API key and quota
    - Ensure your description is clear and specific
    - Try a simpler description first
 

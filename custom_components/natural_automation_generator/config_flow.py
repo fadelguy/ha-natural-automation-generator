@@ -29,7 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_LLM_PROVIDER): vol.In([PROVIDER_OPENAI, PROVIDER_GEMINI]),
+        vol.Required(CONF_LLM_PROVIDER, default=PROVIDER_OPENAI): vol.In([PROVIDER_OPENAI]),
         vol.Required(CONF_API_KEY): str,
     }
 )
@@ -43,8 +43,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     # Test the API connection
     if provider == PROVIDER_OPENAI:
         await _test_openai_connection(api_key)
-    elif provider == PROVIDER_GEMINI:
-        await _test_gemini_connection(api_key)
+    else:
+        raise CannotConnect("Unsupported provider")
     
     # Return info that you want to store in the config entry.
     return {
@@ -108,8 +108,8 @@ class NaturalAutomationGeneratorConfigFlow(config_entries.ConfigFlow, domain=DOM
             provider = user_input[CONF_LLM_PROVIDER]
             if provider == PROVIDER_OPENAI:
                 user_input[CONF_MODEL] = OPENAI_MODELS[0]  # gpt-4o
-            elif provider == PROVIDER_GEMINI:
-                user_input[CONF_MODEL] = GEMINI_MODELS[0]  # gemini-1.5-flash
+            # elif provider == PROVIDER_GEMINI:
+            #     user_input[CONF_MODEL] = GEMINI_MODELS[0]  # gemini-1.5-flash
             
             # Set default values
             user_input[CONF_MAX_TOKENS] = DEFAULT_MAX_TOKENS
@@ -141,7 +141,7 @@ class NaturalAutomationGeneratorOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Manage the options."""
         provider = self.config_entry.data[CONF_LLM_PROVIDER]
-        available_models = OPENAI_MODELS if provider == PROVIDER_OPENAI else GEMINI_MODELS
+        available_models = OPENAI_MODELS  # Only OpenAI supported for now
         
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
