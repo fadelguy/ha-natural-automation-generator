@@ -144,10 +144,32 @@ class NaturalAutomationGeneratorOptionsFlow(config_entries.OptionsFlow):
         available_models = OPENAI_MODELS  # Only OpenAI supported for now
         
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # If API key was changed, validate it and update config entry
+            if CONF_API_KEY in user_input and user_input[CONF_API_KEY] != self.config_entry.data.get(CONF_API_KEY):
+                try:
+                    await _test_openai_connection(user_input[CONF_API_KEY])
+                    # Update the config entry data with new API key
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry,
+                        data={**self.config_entry.data, CONF_API_KEY: user_input[CONF_API_KEY]}
+                    )
+                except CannotConnect:
+                    return self.async_show_form(
+                        step_id="init",
+                        data_schema=options_schema,
+                        errors={"base": "cannot_connect"}
+                    )
+            
+            # Remove API key from options since it's stored in data
+            options_data = {k: v for k, v in user_input.items() if k != CONF_API_KEY}
+            return self.async_create_entry(title="", data=options_data)
 
         options_schema = vol.Schema(
             {
+                vol.Required(
+                    CONF_API_KEY,
+                    default=self.config_entry.data.get(CONF_API_KEY, "")
+                ): str,
                 vol.Required(
                     CONF_MODEL,
                     default=self.config_entry.options.get(
