@@ -7,6 +7,11 @@ from typing import Any
 
 import yaml
 
+try:
+    import openai
+except ImportError:
+    openai = None
+
 from ..const import CONF_API_KEY, CONF_MAX_TOKENS, CONF_MODEL, CONF_TEMPERATURE
 from .base import BaseLLMProvider
 
@@ -24,7 +29,8 @@ class OpenAIProvider(BaseLLMProvider):
     async def _initialize_client(self) -> None:
         """Initialize the OpenAI client."""
         try:
-            import openai
+            if openai is None:
+                raise ImportError("OpenAI library not installed")
             
             api_key = self._get_config_value(CONF_API_KEY)
             if not api_key:
@@ -106,30 +112,40 @@ class OpenAIProvider(BaseLLMProvider):
                 # Try to clean up the YAML by removing non-YAML text after the automation
                 lines = yaml_part.split('\n')
                 yaml_lines = []
+                yaml_started = False
                 
                 for line in lines:
                     stripped = line.strip()
                     
-                    # Skip empty lines
+                    # Skip empty lines but include them in YAML
                     if not stripped:
-                        yaml_lines.append(line)
+                        if yaml_started:
+                            yaml_lines.append(line)
                         continue
                     
-                    # If it looks like YAML (starts with key: or - or has proper indentation)
-                    if (
-                        ':' in stripped or 
-                        stripped.startswith('-') or 
-                        line.startswith('  ') or
-                        stripped.startswith('alias:') or
-                        stripped.startswith('trigger:') or
-                        stripped.startswith('action:') or
-                        stripped.startswith('condition:')
-                    ):
+                    # Check if this looks like YAML
+                    yaml_indicators = [
+                        stripped.startswith('alias:'),
+                        stripped.startswith('trigger:'),
+                        stripped.startswith('action:'),
+                        stripped.startswith('condition:'),
+                        stripped.startswith('- '),
+                        stripped.startswith('platform:'),
+                        stripped.startswith('service:'),
+                        stripped.startswith('entity_id:'),
+                        stripped.startswith('target:'),
+                        ':' in stripped and not stripped.startswith('#'),
+                        line.startswith('  ') or line.startswith('    ') or line.startswith('\t')
+                    ]
+                    
+                    is_yaml_line = any(yaml_indicators)
+                    
+                    if is_yaml_line or yaml_started:
                         yaml_lines.append(line)
-                    else:
-                        # If we encounter non-YAML text after starting YAML, stop
-                        if yaml_lines:
-                            break
+                        yaml_started = True
+                    elif yaml_started and not is_yaml_line:
+                        # We've reached the end of YAML content
+                        break
                 
                 if yaml_lines:
                     extracted = '\n'.join(yaml_lines).strip()
@@ -144,8 +160,20 @@ class OpenAIProvider(BaseLLMProvider):
         """Validate that the generated content is valid YAML."""
         try:
             parsed = yaml.safe_load(yaml_content)
+            _LOGGER.debug("Parsed YAML type: %s, content: %s", type(parsed), parsed)
+            
+            if parsed is None:
+                raise ValueError("YAML content is empty or None")
+            
             if not isinstance(parsed, dict):
-                raise ValueError("YAML must represent a dictionary/object")
+                # If it's a string, try to extract YAML from it
+                if isinstance(parsed, str):
+                    _LOGGER.debug("Got string instead of dict, trying to re-extract YAML")
+                    # Try to find YAML within the string
+                    better_yaml = self._extract_yaml_from_response(parsed)
+                    if better_yaml != parsed:
+                        return self._validate_yaml(better_yaml)
+                raise ValueError(f"YAML must represent a dictionary/object, got {type(parsed)}: {parsed}")
             
             # Check for required automation fields
             required_fields = ["alias", "trigger", "action"]
