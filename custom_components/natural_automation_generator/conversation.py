@@ -42,8 +42,12 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         self._coordinator = coordinator
         self._attr_name = "Natural Automation Generator"
         self._attr_unique_id = f"{DOMAIN}_{config_entry.entry_id}"
-        self._attr_supported_languages = ["en", "he", "*"]
         self._attr_supported_features = conversation.ConversationEntityFeature.CONTROL
+
+    @property
+    def supported_languages(self) -> list[str] | Literal["*"]:
+        """Return supported languages."""
+        return "*"  # Support all languages
 
     @property
     def device_info(self) -> dict[str, Any]:
@@ -53,7 +57,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             "name": "Natural Automation Generator",
             "manufacturer": "Natural Automation Generator",
             "model": "Automation Generator",
-            "sw_version": "1.1.0",
+            "sw_version": "1.1.1",
         }
 
     async def _async_handle_message(
