@@ -57,7 +57,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             "name": "Natural Automation Generator",
             "manufacturer": "Natural Automation Generator",
             "model": "Automation Generator",
-            "sw_version": "1.1.3",
+            "sw_version": "1.1.4",
         }
 
     async def _async_handle_message(
@@ -93,7 +93,13 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
                         
                         await self._save_automation(automation_config)
                         
-                        response_text = f"✅ I've created the automation successfully!\n\n**Generated automation:**\n```yaml\n{result['yaml_config']}\n```\n\nThe automation has been saved and is now active."
+                        # Create a nice response with automation details
+                        automation_name = automation_config.get('alias', 'New Automation')
+                        response_text = f"✅ **Automation Created Successfully!**\n\n" \
+                                       f"**Name:** {automation_name}\n" \
+                                       f"**Description:** {result['description']}\n\n" \
+                                       f"**Generated YAML:**\n```yaml\n{result['yaml_config']}\n```\n\n" \
+                                       f"🎉 The automation has been saved to your `automations.yaml` file and is now active!"
                         
                         # Add to chat log
                         chat_log.async_add_assistant_content_without_tools(

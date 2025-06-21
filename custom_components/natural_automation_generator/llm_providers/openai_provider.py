@@ -36,7 +36,13 @@ class OpenAIProvider(BaseLLMProvider):
             if not api_key:
                 raise ValueError("OpenAI API key not configured")
             
-            self._client = openai.AsyncOpenAI(api_key=api_key)
+            # Initialize client in executor to avoid blocking operations
+            import asyncio
+            loop = asyncio.get_event_loop()
+            self._client = await loop.run_in_executor(
+                None, 
+                lambda: openai.AsyncOpenAI(api_key=api_key)
+            )
             _LOGGER.debug("OpenAI client initialized")
         except ImportError as err:
             _LOGGER.error("OpenAI library not installed: %s", err)
@@ -166,14 +172,26 @@ class OpenAIProvider(BaseLLMProvider):
                 raise ValueError("YAML content is empty or None")
             
             if not isinstance(parsed, dict):
+                # If it's a list with one automation, extract the first one
+                if isinstance(parsed, list) and len(parsed) == 1 and isinstance(parsed[0], dict):
+                    _LOGGER.debug("Got list with single automation, extracting first element")
+                    parsed = parsed[0]
+                elif isinstance(parsed, list) and len(parsed) > 1:
+                    _LOGGER.warning("Got multiple automations, taking the first one")
+                    parsed = parsed[0] if parsed and isinstance(parsed[0], dict) else None
+                    if parsed is None:
+                        raise ValueError("List contains invalid automation objects")
                 # If it's a string, try to extract YAML from it
-                if isinstance(parsed, str):
+                elif isinstance(parsed, str):
                     _LOGGER.debug("Got string instead of dict, trying to re-extract YAML")
                     # Try to find YAML within the string
                     better_yaml = self._extract_yaml_from_response(parsed)
                     if better_yaml != parsed:
                         return self._validate_yaml(better_yaml)
-                raise ValueError(f"YAML must represent a dictionary/object, got {type(parsed)}: {parsed}")
+                
+                # Check if we now have a dict after processing
+                if not isinstance(parsed, dict):
+                    raise ValueError(f"YAML must represent a dictionary/object, got {type(parsed)}: {parsed}")
             
             # Check for required automation fields
             required_fields = ["alias", "trigger", "action"]
