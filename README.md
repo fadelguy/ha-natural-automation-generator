@@ -24,7 +24,7 @@ Generate Home Assistant automations through natural language conversations! Chat
 ## ✨ Features
 
 - 💬 **Chat Interface**: Natural conversation interface integrated with Home Assistant Voice Assistants
-- 🤖 **AI-Powered**: Uses OpenAI GPT models (GPT-4o, GPT-4o-mini, etc.) for automation generation
+- 🤖 **AI-Powered**: Uses OpenAI GPT models (GPT-4.1, GPT-4o, GPT-4o-mini) for automation generation
 - 🏠 **Entity Discovery**: Automatically discovers all your Home Assistant entities and areas
 - ✅ **YAML Validation**: Validates and fixes generated automations before saving
 - 📝 **Automatic Saving**: Saves automations directly to your `automations.yaml` file with unique IDs
@@ -70,10 +70,9 @@ After setup, you can reconfigure the integration by clicking **Configure** in th
 
 - **API Key**: Update your OpenAI API key
 - **Model**: Choose your preferred GPT model:
+  - `gpt-4.1` (latest and most advanced)
   - `gpt-4o` (recommended - most capable)
   - `gpt-4o-mini` (faster and cheaper)
-  - `gpt-4-turbo` (previous generation)
-  - `gpt-3.5-turbo` (basic but economical)
 - **Max Tokens**: Maximum response length (100-4000 tokens)
 - **Temperature**: Response creativity (0.0-1.0, lower = more deterministic)
 
@@ -208,9 +207,9 @@ Example generated automation:
 
 ### Cost Estimates
 
+- **GPT-4.1**: ~$0.03-0.10 per automation (most advanced)
 - **GPT-4o**: ~$0.02-0.08 per automation
 - **GPT-4o-mini**: ~$0.005-0.02 per automation
-- **GPT-3.5-turbo**: ~$0.001-0.005 per automation
 
 Costs depend on automation complexity and entity count.
 
