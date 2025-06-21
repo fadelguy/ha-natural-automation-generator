@@ -57,7 +57,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             "name": "Natural Automation Generator",
             "manufacturer": "Natural Automation Generator",
             "model": "Automation Generator",
-            "sw_version": "1.1.4",
+            "sw_version": "1.2.1",
         }
 
     async def _async_handle_message(
@@ -226,26 +226,67 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
     async def _save_automation(self, automation_config: dict[str, Any]) -> None:
         """Save automation to Home Assistant."""
         try:
+            import uuid
+            import asyncio
+            
+            # Generate unique ID for the automation
+            if 'id' not in automation_config:
+                automation_config['id'] = str(uuid.uuid4())[:8]
+                
+            # Add auto-generated indicator to alias
+            if 'alias' in automation_config:
+                alias = automation_config['alias']
+                if not alias.endswith('(Auto Generated)'):
+                    automation_config['alias'] = f"{alias} (Auto Generated)"
+            else:
+                automation_config['alias'] = "Automation (Auto Generated)"
+                
+            # Fix the structure to match Home Assistant format
+            # Convert trigger -> triggers, action -> actions if needed
+            if 'trigger' in automation_config and 'triggers' not in automation_config:
+                automation_config['triggers'] = automation_config.pop('trigger')
+            if 'action' in automation_config and 'actions' not in automation_config:
+                automation_config['actions'] = automation_config.pop('action')
+            if 'condition' in automation_config and 'conditions' not in automation_config:
+                automation_config['conditions'] = automation_config.pop('condition')
+            
             # Get existing automations
             automation_config_path = self.hass.config.path("automations.yaml")
             
-            try:
-                with open(automation_config_path, 'r', encoding='utf-8') as file:
-                    existing_automations = yaml.safe_load(file) or []
-            except FileNotFoundError:
+            def _read_automations():
+                try:
+                    with open(automation_config_path, 'r', encoding='utf-8') as file:
+                        content = file.read().strip()
+                        if not content:
+                            return []
+                        return yaml.safe_load(content) or []
+                except FileNotFoundError:
+                    return []
+                except Exception as err:
+                    _LOGGER.error("Error reading automations.yaml: %s", err)
+                    return []
+            
+            def _write_automations(automations_list):
+                with open(automation_config_path, 'w', encoding='utf-8') as file:
+                    yaml.dump(automations_list, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            
+            # Run file operations in executor to avoid blocking
+            existing_automations = await self.hass.async_add_executor_job(_read_automations)
+            
+            # Ensure it's a list
+            if not isinstance(existing_automations, list):
                 existing_automations = []
             
             # Add new automation
             existing_automations.append(automation_config)
             
             # Save back to file
-            with open(automation_config_path, 'w', encoding='utf-8') as file:
-                yaml.dump(existing_automations, file, default_flow_style=False, allow_unicode=True)
+            await self.hass.async_add_executor_job(_write_automations, existing_automations)
             
             # Reload automations
             await self.hass.services.async_call("automation", "reload")
             
-            _LOGGER.info("Automation saved and reloaded successfully")
+            _LOGGER.info("Automation saved with ID %s and reloaded successfully", automation_config['id'])
             
         except Exception as err:
             _LOGGER.error("Failed to save automation: %s", err)

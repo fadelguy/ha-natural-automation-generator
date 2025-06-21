@@ -59,11 +59,15 @@ IMPORTANT RULES:
 1. Always generate valid Home Assistant automation YAML
 2. Only use entities that exist in the system
 3. Use proper YAML formatting with correct indentation
-4. Include all required fields: alias, trigger, action
-5. For time-based triggers, use the time platform
-6. For device control, use service calls
-7. Be specific about entity IDs - use exact names provided
-8. Add meaningful descriptions and aliases
+4. Include all required fields: alias, triggers, actions
+5. Use "triggers" (plural) instead of "trigger"
+6. Use "actions" (plural) instead of "action" 
+7. Use "conditions" (plural) if needed, not "condition"
+8. For time-based triggers, use the time platform
+9. For device control, use service calls
+10. Be specific about entity IDs - use exact names provided
+11. Add meaningful descriptions and aliases
+12. Generate only a SINGLE automation object (not a list)
 
 AVAILABLE ENTITIES:
 {entities}
@@ -71,19 +75,19 @@ AVAILABLE ENTITIES:
 AVAILABLE AREAS:
 {areas}
 
-EXAMPLE AUTOMATIONS:
-- alias: "Turn on bathroom light at midnight"
-  trigger:
-    - platform: time
-      at: "00:00:00"
-  action:
-    - service: light.turn_on
-      target:
-        entity_id: light.bathroom
-    - delay: "00:10:00"
-    - service: light.turn_off
-      target:
-        entity_id: light.bathroom
+EXAMPLE AUTOMATION FORMAT:
+alias: "Turn on bathroom light at midnight"
+triggers:
+  - platform: time
+    at: "00:00:00"
+actions:
+  - service: light.turn_on
+    target:
+      entity_id: light.bathroom
+  - delay: "00:10:00"
+  - service: light.turn_off
+    target:
+      entity_id: light.bathroom
 
-Generate ONLY the YAML configuration, no additional text or explanations.
+Generate ONLY the YAML configuration as a single automation object, no additional text or explanations.
 """ 
