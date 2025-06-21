@@ -4,6 +4,8 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/fadelguy/ha-natural-automation-generator)](https://github.com/fadelguy/ha-natural-automation-generator/releases)
 [![GitHub issues](https://img.shields.io/github/issues/fadelguy/ha-natural-automation-generator)](https://github.com/fadelguy/ha-natural-automation-generator/issues)
 
+[![GitHub Sponsors](https://img.shields.io/badge/sponsor-GitHub_Sponsors-ea4aaa?style=flat&logo=github)](https://github.com/sponsors/fadelguy)
+
 Generate Home Assistant automations through natural language conversations! Chat with your Home Assistant using the built-in Voice Assistants like Assist, and create automations instantly using OpenAI's powerful AI models.
 
 ## ✨ Features
@@ -311,6 +313,32 @@ This integration uses AI/LLM services which may:
 - 💬 [Community Forum](https://community.home-assistant.io/)
 - 📖 [Home Assistant Documentation](https://www.home-assistant.io/docs/)
 - 📧 [OpenAI Support](https://help.openai.com/) for API-related issues
+
+## ☕ Support This Project
+
+If this integration has made your Home Assistant automation journey easier, consider supporting its development:
+
+<div align="center">
+
+[![GitHub Sponsors](https://img.shields.io/badge/sponsor-GitHub_Sponsors-ea4aaa?style=for-the-badge&logo=github)](https://github.com/sponsors/fadelguy)
+
+</div>
+
+**Why support this project?**
+
+- 🚀 **Continued Development**: New features, bug fixes, and improvements
+- 🤖 **Additional AI Providers**: Support for Google Gemini, Claude, and other LLM providers
+- 📚 **Enhanced Documentation**: Better guides, examples, and tutorials
+- 🎯 **Priority Support**: Faster responses to issues and feature requests
+- ☁️ **API Costs**: Helping cover development and testing API costs
+
+Every contribution, no matter how small, helps keep this project alive and growing! 🙏
+
+### 🎯 How You Can Help
+
+Support this project through [GitHub Sponsors](https://github.com/sponsors/fadelguy) - any contribution helps keep the project alive and growing!
+
+_Every contribution, no matter the size, makes a real difference in continued development and improvements._
 
 ## 🚀 Roadmap
 

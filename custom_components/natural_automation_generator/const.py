@@ -20,10 +20,9 @@ DEFAULT_TEMPERATURE = 0.1
 
 # OpenAI Models
 OPENAI_MODELS = [
+    "gpt-4.1",
     "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4-turbo",
-    "gpt-3.5-turbo"
+    "gpt-4o-mini"
 ]
 
 # Gemini Models
