@@ -206,31 +206,48 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         """Handle user's response to clarification question."""
         _LOGGER.debug("Handling clarification response: %s", user_text)
         
-        # Update collected info based on response
-        # This is a simplified version - in reality, you'd want more sophisticated parsing
+        # Parse the user response and update context
+        # Extract entity selection or other choices from user text
         context.collected_info.update({
-            "user_clarification": user_text,
+            "user_response": user_text,
             "clarification_step": context.attempt_count
         })
         
+        # Try to parse entity selection from the response
+        if "light." in user_text:
+            # User mentioned a specific entity ID
+            entity_id = user_text.split("light.")[1].split(")")[0]
+            context.collected_info["entity_id"] = f"light.{entity_id}"
+        elif any(word in user_text.lower() for word in ["big", "גדול", "small", "קטן", "kitchen", "מטבח"]):
+            # User gave description - try to map it
+            if "big" in user_text.lower() or "גדול" in user_text:
+                context.collected_info["entity_preference"] = "big"
+            elif "small" in user_text.lower() or "קטן" in user_text:
+                context.collected_info["entity_preference"] = "small"
+            elif "kitchen" in user_text.lower() or "מטבח" in user_text:
+                context.collected_info["area"] = "kitchen"
+        
         context.attempt_count += 1
         
-        # Check if we need more clarification or can proceed to preview
-        if context.attempt_count < 3:  # Limit clarification rounds
-            # Try to analyze again with the additional info
-            combined_request = f"{context.original_request}. {user_text}"
-            analysis_result = await self._coordinator.analyze_request(combined_request)
-            
-            if analysis_result["success"]:
-                analysis = analysis_result["analysis"]
-                if analysis.get("needs_clarification", False):
-                    # Still need clarification
-                    clarification_result = await self._coordinator.generate_clarification(combined_request, analysis)
-                    if clarification_result["success"]:
-                        context.last_question = clarification_result["question"]
-                        return clarification_result["question"]
+        # Analyze the combined request to see if still need clarification
+        combined_request = f"{context.original_request}. User selected: {user_text}"
+        analysis_result = await self._coordinator.analyze_request(combined_request)
         
-        # Move to preview
+        if analysis_result["success"]:
+            analysis = analysis_result["analysis"]
+            
+            # If still need clarification and haven't exceeded attempts
+            if analysis.get("needs_clarification", False) and context.attempt_count < 3:
+                clarification_result = await self._coordinator.generate_clarification(combined_request, analysis)
+                if clarification_result["success"]:
+                    context.last_question = clarification_result["question"]
+                    return clarification_result["question"]
+            
+            # Update collected info with new analysis
+            if "understood" in analysis:
+                context.collected_info.update(analysis["understood"])
+        
+        # Move to preview - we have enough info or reached max attempts
         context.step = STEP_PREVIEW
         return await self._generate_preview(context)
 
