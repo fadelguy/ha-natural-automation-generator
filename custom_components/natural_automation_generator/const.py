@@ -128,7 +128,7 @@ USER REQUEST: {user_request}
 
 Analyze the request and return JSON with the following structure:
 {{
-  "is_automation_request": true/false,
+  "is_automation_request": True/False,
   "language": "detected language code (he, en, etc.)",
   "understood": {{
     "action": "what action to perform (turn_on, turn_off, etc.)",
@@ -143,7 +143,7 @@ Analyze the request and return JSON with the following structure:
   "ambiguous_entities": {{
     "entity_type": ["list", "of", "matching", "entity_ids"]
   }},
-  "needs_clarification": true/false
+  "needs_clarification": True/False
 }}
 
 Focus on identifying:
@@ -356,7 +356,7 @@ ANALYSIS_JSON_SCHEMA = {
             }
         },
         "required": ["is_automation_request", "language", "needs_clarification"],
-        "additionalProperties": false
+        "additionalProperties": False
     }
 }
 
@@ -383,6 +383,6 @@ INTENT_ANALYSIS_JSON_SCHEMA = {
             }
         },
         "required": ["intent", "confidence"],
-        "additionalProperties": false
+        "additionalProperties": False
     }
 } 
