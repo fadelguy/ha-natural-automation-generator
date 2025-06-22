@@ -33,6 +33,10 @@ class BaseLLMProvider(ABC):
     async def generate_automation(self, system_prompt: str, user_description: str) -> str:
         """Generate automation YAML from natural language description."""
 
+    @abstractmethod
+    async def generate_response(self, prompt: str) -> str:
+        """Generate a text response from the LLM."""
+
     async def _ensure_client_initialized(self) -> None:
         """Ensure the client is initialized."""
         if self._client is None:

@@ -96,6 +96,41 @@ class OpenAIProvider(BaseLLMProvider):
             _LOGGER.error("OpenAI automation generation failed: %s", err)
             raise
 
+    async def generate_response(self, prompt: str) -> str:
+        """Generate a text response from the LLM."""
+        await self._ensure_client_initialized()
+        
+        model = self._get_config_value(CONF_MODEL, "gpt-4o")
+        max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
+        temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
+        
+        try:
+            _LOGGER.debug("Generating response with OpenAI model: %s", model)
+            
+            response = await self._client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature,
+                response_format={"type": "text"}
+            )
+            
+            if not response.choices:
+                raise ValueError("No response received from OpenAI")
+            
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from OpenAI")
+            
+            _LOGGER.debug("Successfully generated response")
+            return content.strip()
+            
+        except Exception as err:
+            _LOGGER.error("OpenAI response generation failed: %s", err)
+            raise
+
     def _extract_yaml_from_response(self, response: str) -> str:
         """Extract YAML configuration from LLM response."""
         _LOGGER.debug("Extracting YAML from response: %s", response[:300] + "..." if len(response) > 300 else response)
