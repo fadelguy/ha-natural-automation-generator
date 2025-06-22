@@ -126,6 +126,22 @@ AVAILABLE AREAS:
 
 USER REQUEST: {user_request}
 
+CRITICAL: Only classify as automation request if the user explicitly wants to CREATE AN AUTOMATION or AUTOMATE something.
+
+AUTOMATION REQUESTS include:
+- "Turn on the lights when I come home"
+- "Close the blinds at sunset"
+- "תדליק את האור במטבח" (Turn on kitchen light)
+- "Create automation to..."
+- "I want to automate..."
+- Requests with triggers (when/if) and actions (then/do)
+
+NOT AUTOMATION REQUESTS include:
+- General questions: "How can I help?", "What can you do?"
+- Status requests: "What lights are on?", "Show me devices"
+- Help requests: "Help me", "I need assistance"
+- General greetings or conversation starters
+
 Analyze the request and return JSON with the following structure:
 {{
   "is_automation_request": True/False,
@@ -147,7 +163,7 @@ Analyze the request and return JSON with the following structure:
 }}
 
 Focus on identifying:
-1. Whether this is an automation request or general query
+1. Whether this is an automation request or general query (BE STRICT!)
 2. Multiple entities that match the description
 3. Vague time references ("at night", "in the morning")  
 4. Missing trigger conditions
@@ -164,17 +180,30 @@ USER LANGUAGE: {language}
 ENTITIES INFO: {entities}
 AREAS INFO: {areas}
 
-Respond helpfully to their request in their language. Common requests include:
-- Listing entities/devices 
-- General help about the automation system
-- Questions about Home Assistant
+Respond helpfully to their request in their language. Examples of what you can help with:
+
+FOR GENERAL HELP QUESTIONS ("How can I assist?", "What can you do?"):
+- Explain that you can help create Home Assistant automations
+- Give examples: "I can help you create automations like turning on lights when you arrive home, closing blinds at sunset, etc."
+- Invite them to describe what they want to automate
+
+FOR DEVICE/ENTITY QUESTIONS:
+- List available devices if they ask
+- Explain what entities are available in their system
+
+FOR HELP REQUESTS:
+- Explain your automation creation capabilities
+- Give concrete examples of automations you can create
+- Ask what they would like to automate
 
 IMPORTANT:
 - Respond in the user's detected language naturally
-- Be helpful and friendly
-- If they ask for entities/devices, provide the available information
-- If they ask for help, explain what you can do for automation creation
+- Be helpful and friendly 
+- DO NOT suggest specific automations unless they ask
+- Focus on explaining your capabilities and asking what THEY want to automate
 - Use appropriate tone and emojis for the language
+- For Hebrew: Write in Hebrew naturally
+- For English: Write in English naturally
 
 Return ONLY the response text, no JSON or additional formatting.
 """
@@ -250,18 +279,39 @@ USER'S LANGUAGE: {language}
 ORIGINAL REQUEST: {original_request}
 ANALYSIS RESULTS: {analysis_results}
 
-Generate a natural, friendly clarifying question that helps resolve the ambiguity. Include specific options when possible.
+Generate a natural, friendly clarifying question that helps resolve the ambiguity. Format it beautifully and user-friendly:
 
-For multiple entities, list them clearly with their friendly names and entity IDs.
-For time-related questions, provide common options.
-For missing conditions, ask for specific details.
+FOR MULTIPLE ENTITIES - Use this format:
+[Question asking which device they want] 💡
+
+🔹 **[Friendly Name 1]** (`[entity_id]`)
+🔹 **[Friendly Name 2]** (`[entity_id]`)
+🔹 **[Friendly Name 3]** (`[entity_id]`)
+
+FOR TIME-RELATED QUESTIONS - Use this format:
+[Question asking when they want the action] ⏰
+
+🕐 **[Morning option]** (6:00-10:00)
+🕐 **[Noon option]** (12:00-16:00)  
+🕐 **[Evening option]** (18:00-22:00)
+🕐 **[Night option]** (22:00-6:00)
+
+FOR CONDITIONS/TRIGGERS - Use this format:
+[Question asking what should trigger the automation] 🎯
+
+🔸 **[Motion sensor option]**
+🔸 **[Door opening option]**
+🔸 **[Time-based option]**
+🔸 **[Sun state option]**
 
 IMPORTANT: 
 - Respond in the same language as the user's original request
+- Use emojis and formatting to make it visually appealing
 - Be conversational and helpful, not technical
-- Use natural language appropriate for the detected language
-- For Hebrew users, use Hebrew naturally
+- For Hebrew users, use Hebrew naturally with RTL formatting
 - For English users, use English naturally
+- Make entity IDs smaller/secondary with backticks
+- Use bold for friendly names
 
 Return ONLY the clarifying question text, no JSON or additional formatting.
 """
