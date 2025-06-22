@@ -313,4 +313,76 @@ Determine the user's intent based on the natural language of their response:
 Consider responses in any language and look for intent rather than specific keywords.
 
 Return ONLY the JSON, no additional text.
-""" 
+"""
+
+# JSON Schemas for OpenAI structured responses
+ANALYSIS_JSON_SCHEMA = {
+    "name": "analysis_response",
+    "description": "Analysis of user automation request",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "is_automation_request": {
+                "type": "boolean",
+                "description": "Whether this is an automation request"
+            },
+            "language": {
+                "type": "string",
+                "description": "Detected language code (e.g., 'he', 'en')"
+            },
+            "understood": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string"},
+                    "entity_type": {"type": "string"},
+                    "area": {"type": "string"},
+                    "time": {"type": "string"},
+                    "conditions": {"type": "string"}
+                }
+            },
+            "missing_info": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "ambiguous_entities": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                }
+            },
+            "needs_clarification": {
+                "type": "boolean"
+            }
+        },
+        "required": ["is_automation_request", "language", "needs_clarification"],
+        "additionalProperties": false
+    }
+}
+
+INTENT_ANALYSIS_JSON_SCHEMA = {
+    "name": "intent_analysis",
+    "description": "Analysis of user's intent from their response to automation preview",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "intent": {
+                "type": "string",
+                "enum": ["approve", "reject", "modify"],
+                "description": "User's intent"
+            },
+            "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Confidence level (0-1)"
+            },
+            "changes_requested": {
+                "type": "string",
+                "description": "Specific changes mentioned if intent is modify"
+            }
+        },
+        "required": ["intent", "confidence"],
+        "additionalProperties": false
+    }
+} 

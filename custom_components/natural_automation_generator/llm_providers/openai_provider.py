@@ -96,7 +96,7 @@ class OpenAIProvider(BaseLLMProvider):
             _LOGGER.error("OpenAI automation generation failed: %s", err)
             raise
 
-    async def generate_response(self, prompt: str) -> str:
+    async def generate_response(self, prompt: str, json_schema: dict = None) -> str:
         """Generate a text response from the LLM."""
         await self._ensure_client_initialized()
         
@@ -107,15 +107,26 @@ class OpenAIProvider(BaseLLMProvider):
         try:
             _LOGGER.debug("Generating response with OpenAI model: %s", model)
             
-            response = await self._client.chat.completions.create(
-                model=model,
-                messages=[
+            # Prepare request parameters
+            request_params = {
+                "model": model,
+                "messages": [
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=max_tokens,
-                temperature=temperature,
-                response_format={"type": "text"}
-            )
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            }
+            
+            # Add JSON schema if provided
+            if json_schema:
+                request_params["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": json_schema
+                }
+            else:
+                request_params["response_format"] = {"type": "text"}
+            
+            response = await self._client.chat.completions.create(**request_params)
             
             if not response.choices:
                 raise ValueError("No response received from OpenAI")

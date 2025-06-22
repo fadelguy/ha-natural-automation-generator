@@ -129,4 +129,38 @@ class GeminiProvider(BaseLLMProvider):
                 raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
             
         except yaml.YAMLError as err:
-            raise ValueError(f"Invalid YAML format: {err}") from err 
+            raise ValueError(f"Invalid YAML format: {err}") from err
+
+    async def generate_response(self, prompt: str, json_schema: dict = None) -> str:
+        """Generate a text response from the LLM."""
+        await self._ensure_client_initialized()
+        
+        temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
+        max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
+        
+        try:
+            _LOGGER.debug("Generating response with Gemini")
+            
+            generation_config = {
+                "temperature": temperature,
+                "max_output_tokens": max_tokens,
+            }
+            
+            # Note: Gemini doesn't support JSON schema yet, so we ignore it for now
+            if json_schema:
+                _LOGGER.warning("JSON schema not supported for Gemini provider yet")
+            
+            response = await self._client.generate_content_async(
+                prompt,
+                generation_config=generation_config
+            )
+            
+            if not response.text:
+                raise ValueError("Empty response from Gemini")
+            
+            _LOGGER.debug("Successfully generated response")
+            return response.text.strip()
+            
+        except Exception as err:
+            _LOGGER.error("Gemini response generation failed: %s", err)
+            raise 

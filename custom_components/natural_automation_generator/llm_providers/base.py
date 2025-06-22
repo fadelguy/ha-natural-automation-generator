@@ -34,7 +34,7 @@ class BaseLLMProvider(ABC):
         """Generate automation YAML from natural language description."""
 
     @abstractmethod
-    async def generate_response(self, prompt: str) -> str:
+    async def generate_response(self, prompt: str, json_schema: dict = None) -> str:
         """Generate a text response from the LLM."""
 
     async def _ensure_client_initialized(self) -> None:

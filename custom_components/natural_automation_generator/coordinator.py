@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -24,6 +23,8 @@ from .const import (
     PROVIDER_OPENAI,
     SUCCESS_RESPONSE_PROMPT,
     SYSTEM_PROMPT_TEMPLATE,
+    ANALYSIS_JSON_SCHEMA,
+    INTENT_ANALYSIS_JSON_SCHEMA,
 )
 from .llm_providers.base import BaseLLMProvider
 from .llm_providers.openai_provider import OpenAIProvider
@@ -125,33 +126,7 @@ class NaturalAutomationGeneratorCoordinator:
         
         return "AREAS:\n" + "\n".join(areas_info)
 
-    def _extract_json_from_response(self, response: str) -> str:
-        """Extract JSON from LLM response, handling code blocks."""
-        _LOGGER.debug("Extracting JSON from response: %s", response[:200] + "..." if len(response) > 200 else response)
-        
-        # Look for JSON code blocks first
-        json_match = re.search(r'```(?:json)?\s*\n(.*?)\n```', response, re.DOTALL)
-        if json_match:
-            extracted = json_match.group(1).strip()
-            _LOGGER.debug("Found JSON in code block")
-            return extracted
-        
-        # Look for JSON object without code blocks
-        if response.strip().startswith('{') and response.strip().endswith('}'):
-            _LOGGER.debug("Found JSON object without code blocks")
-            return response.strip()
-        
-        # Try to find JSON-like content in the response
-        json_start = response.find('{')
-        json_end = response.rfind('}')
-        if json_start != -1 and json_end != -1 and json_end > json_start:
-            extracted = response[json_start:json_end + 1]
-            _LOGGER.debug("Extracted JSON from text content")
-            return extracted
-        
-        # Last resort - return the whole response
-        _LOGGER.debug("Could not extract JSON properly, returning full response")
-        return response.strip()
+
 
     async def build_system_prompt(self) -> str:
         """Build the complete system prompt with current entities and areas."""
@@ -175,12 +150,11 @@ class NaturalAutomationGeneratorCoordinator:
                 user_request=user_request
             )
             
-            response = await self.provider.generate_response(prompt)
+            response = await self.provider.generate_response(prompt, ANALYSIS_JSON_SCHEMA)
             
-            # Parse JSON response
+            # Parse JSON response (should be clean JSON now)
             try:
-                json_content = self._extract_json_from_response(response)
-                analysis_result = json.loads(json_content)
+                analysis_result = json.loads(response)
                 _LOGGER.debug("Analysis result for '%s': %s", user_request, analysis_result)
                 return {
                     "success": True,
@@ -262,12 +236,11 @@ class NaturalAutomationGeneratorCoordinator:
                 context=json.dumps(context, indent=2)
             )
             
-            response = await self.provider.generate_response(prompt)
+            response = await self.provider.generate_response(prompt, INTENT_ANALYSIS_JSON_SCHEMA)
             
-            # Parse JSON response
+            # Parse JSON response (should be clean JSON now)
             try:
-                json_content = self._extract_json_from_response(response)
-                intent_result = json.loads(json_content)
+                intent_result = json.loads(response)
                 _LOGGER.debug("Intent analysis for '%s': %s", user_response, intent_result)
                 return {
                     "success": True,
