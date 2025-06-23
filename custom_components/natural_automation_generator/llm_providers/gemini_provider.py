@@ -170,10 +170,21 @@ class GeminiProvider(BaseLLMProvider):
                 if prop.get("type") == "array" and "items" in prop:
                     converted_prop["items"] = convert_schema_part(prop["items"])
                 
-                if prop.get("type") == "object" and "properties" in prop:
-                    converted_prop["properties"] = convert_properties(prop["properties"])
-                    if "required" in prop:
-                        converted_prop["required"] = prop["required"]
+                if prop.get("type") == "object":
+                    # Handle both properties and additionalProperties
+                    if "properties" in prop:
+                        converted_prop["properties"] = convert_properties(prop["properties"])
+                        if "required" in prop:
+                            converted_prop["required"] = prop["required"]
+                    elif "additionalProperties" in prop:
+                        # For additionalProperties, we'll skip this field entirely
+                        # since Gemini doesn't support dynamic object properties well
+                        _LOGGER.debug(f"Skipping field '{key}' with additionalProperties for Gemini compatibility")
+                        continue
+                    else:
+                        # Object without properties - skip it
+                        _LOGGER.debug(f"Skipping object field '{key}' without defined properties")
+                        continue
                 
                 converted[key] = converted_prop
             
@@ -192,10 +203,22 @@ class GeminiProvider(BaseLLMProvider):
             if schema_part.get("type") == "array" and "items" in schema_part:
                 converted["items"] = convert_schema_part(schema_part["items"])
             
-            if schema_part.get("type") == "object" and "properties" in schema_part:
-                converted["properties"] = convert_properties(schema_part["properties"])
-                if "required" in schema_part:
-                    converted["required"] = schema_part["required"]
+            if schema_part.get("type") == "object":
+                # Handle both properties and additionalProperties
+                if "properties" in schema_part:
+                    converted["properties"] = convert_properties(schema_part["properties"])
+                    if "required" in schema_part:
+                        converted["required"] = schema_part["required"]
+                elif "additionalProperties" in schema_part:
+                    # For additionalProperties, convert to STRING type instead
+                    _LOGGER.debug("Converting object with additionalProperties to STRING type for Gemini")
+                    converted["type"] = "STRING"
+                    converted["description"] = "JSON string containing dynamic properties"
+                else:
+                    # Object without properties - convert to STRING
+                    _LOGGER.debug("Converting object without properties to STRING type for Gemini")
+                    converted["type"] = "STRING"
+                    converted["description"] = "JSON string representation"
             
             return converted
         
