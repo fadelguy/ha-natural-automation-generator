@@ -28,8 +28,9 @@ from .const import (
     STEP_CLARIFYING,
     STEP_COLLECTING_INFO,
     STEP_INITIAL,
+    STEP_CREATING_AUTOMATION,
 )
-from .coordinator import NaturalAutomationGeneratorCoordinator
+from .coordinator import NaturalAutomationCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class ConversationContext:
     conversation_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     original_request: str = ""
     language: str = "en"
-    step: str = STEP_ANALYSIS
+    step: str = STEP_INITIAL
     collected_info: Dict[str, Any] = field(default_factory=dict)
     analysis_results: Dict[str, Any] = field(default_factory=dict)
     needs_clarification: bool = False
@@ -65,7 +66,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         self,
         hass: HomeAssistant,
         config_entry: ConfigEntry,
-        coordinator: NaturalAutomationGeneratorCoordinator,
+        coordinator: NaturalAutomationCoordinator,
     ) -> None:
         """Initialize the conversation entity."""
         self.hass = hass
@@ -136,14 +137,13 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             await _update_progress_entity(self.hass, agent_id, "❌ Error occurred")
             return await self._handle_error(context, str(err), chat_log, agent_id)
 
-    def _get_or_create_context(self, conversation_id: str, user_text: str) -> ConversationContext:
+    def _get_conversation_context(self, conversation_id: str) -> ConversationContext:
         """Get existing or create new conversation context."""
         if conversation_id not in self._conversations:
-            # Create new context for potential automation request
+            # Create new context
             context = ConversationContext(
                 conversation_id=conversation_id,
-                original_request=user_text,
-                step=STEP_ANALYSIS
+                step=STEP_INITIAL
             )
             self._conversations[conversation_id] = context
         
@@ -370,15 +370,28 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             response = analysis.get("response", "I need more information to proceed.")
             return self._create_conversation_result(response)
 
-    async def _generate_error_response(self, error: str) -> str:
-        """Generate error response using LLM."""
-        error_result = await self._coordinator.generate_error_response(error)
-        
-        if error_result["success"]:
-            return error_result["response"]
-        else:
-            # Fallback error message - let LLM decide language based on conversation
-            return f"❌ Sorry, I encountered an error: {error}"
+    async def _generate_error_response(self, error: str) -> conversation.ConversationResult:
+        """Generate error response."""
+        return self._create_conversation_result(f"Error: {error}")
+
+    async def _handle_error(self, context: ConversationContext, error: str, chat_log, agent_id: str) -> conversation.ConversationResult:
+        """Handle error in conversation."""
+        context.step = STEP_ERROR
+        return await self._generate_error_response(error)
+
+    def _create_conversation_result(self, response: str) -> conversation.ConversationResult:
+        """Create a conversation result."""
+        return conversation.ConversationResult(
+            response=conversation.ConversationResponse(
+                response_type=intent.IntentResponseType.ACTION_DONE,
+                language="*",  # Support all languages
+                intent=None,
+                speech={"plain": {"speech": response, "extra_data": None}},
+                card=None,
+                error_code=None,
+            ),
+            conversation_id=None,
+        )
 
     async def _generate_cancellation_response(self) -> str:
         """Generate cancellation response using LLM."""
@@ -473,29 +486,15 @@ async def _update_progress_entity(hass: HomeAssistant, agent_id: str, message: s
     """Update progress entity for dashboard display."""
     try:
         # Create or update input_text entity for progress display
-        entity_id = f"input_text.natural_automation_progress_{agent_id.replace('.', '_')}"
-        
-        # Check if entity exists, if not create it
-        if not hass.states.get(entity_id):
-            await hass.services.async_call(
-                "input_text",
-                "set_value",
-                {
-                    "entity_id": entity_id,
-                    "value": message
-                },
-                blocking=False
-            )
-        else:
-            # Update existing entity
-            await hass.services.async_call(
-                "input_text",
-                "set_value",
-                {
-                    "entity_id": entity_id,
-                    "value": message
-                },
-                blocking=False
-            )
+        entity_id = f"input_text.natural_automation_progress_{agent_id}"
+        await hass.services.async_call(
+            "input_text",
+            "set_value",
+            {
+                "entity_id": entity_id,
+                "value": message
+            },
+            blocking=False
+        )
     except Exception as err:
         _LOGGER.debug("Could not update progress entity: %s", err) 

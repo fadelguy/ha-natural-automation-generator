@@ -1,19 +1,24 @@
 """Constants for the Natural Automation Generator integration."""
 
-# Basic integration info
+# Domain and basic info
 DOMAIN = "natural_automation_generator"
 NAME = "Natural Automation Generator"
-VERSION = "2.2.2"
+VERSION = "2.2.3"
 
 # Configuration and services
 DEFAULT_NAME = NAME
 SERVICE_GENERATE_AUTOMATION = "generate_automation"
 
-# Conversation flow steps
+# Conversation steps
+STEP_INITIAL = "initial"
+STEP_ANALYZING = "analyzing"
 STEP_ANALYSIS = "analysis"
+STEP_CLARIFYING = "clarifying"
 STEP_CLARIFICATION = "clarification"
+STEP_COLLECTING_INFO = "collecting_info"
 STEP_PREVIEW = "preview"
 STEP_AWAITING_APPROVAL = "awaiting_approval"
+STEP_CREATING_AUTOMATION = "creating_automation"
 STEP_CREATING = "creating"
 STEP_COMPLETED = "completed"
 STEP_ERROR = "error"
