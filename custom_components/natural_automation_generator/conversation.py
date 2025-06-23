@@ -30,7 +30,7 @@ from .const import (
     STEP_INITIAL,
     STEP_CREATING_AUTOMATION,
 )
-from .coordinator import NaturalAutomationCoordinator
+from .coordinator import NaturalAutomationGeneratorCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         self,
         hass: HomeAssistant,
         config_entry: ConfigEntry,
-        coordinator: NaturalAutomationCoordinator,
+        coordinator: NaturalAutomationGeneratorCoordinator,
     ) -> None:
         """Initialize the conversation entity."""
         self.hass = hass
