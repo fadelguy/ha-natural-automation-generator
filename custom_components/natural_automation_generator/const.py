@@ -70,17 +70,21 @@ You generate valid YAML automations for Home Assistant.
 Create a single automation from natural language.
 
 📏 Rules:
-- Use only existing entities and areas
+- ⚠️ CRITICAL: Use ONLY the exact entity IDs listed below in the ENTITIES section
+- ⚠️ NEVER invent or create entity IDs that are not in the list
+- ⚠️ If you need a light, use ONLY entities starting with "light." from the list
+- ⚠️ If you need a switch, use ONLY entities starting with "switch." from the list
 - Output a valid YAML object (no list)
 - Include: id, alias, triggers, actions
 - Use plural keys: triggers, actions, conditions
 - Format correctly with indentation
-- Use exact entity IDs
+- Use exact entity IDs from the list below
 - id: 8–12 lowercase characters, no spaces
 
-📦 Entities:
+📦 AVAILABLE ENTITIES (USE ONLY THESE):
 {entities}
-📍 Areas:
+
+📍 AVAILABLE AREAS (USE ONLY THESE):
 {areas}
 
 ✅ Example:
@@ -93,6 +97,8 @@ actions:
   - service: light.turn_on
     target:
       entity_id: light.bathroom
+
+⚠️ REMINDER: Only use entity IDs that appear in the AVAILABLE ENTITIES list above!
 
 Return YAML only.
 """

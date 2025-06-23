@@ -66,12 +66,18 @@ class GeminiProvider(BaseLLMProvider):
             # Enhance prompt with stronger entity validation for Gemini
             enhanced_prompt = f"""{system_prompt}
 
-⚠️ CRITICAL FOR GEMINI: You MUST use ONLY the exact entity IDs listed above.
-DO NOT invent or create new entity IDs that are not in the AVAILABLE ENTITIES list.
-If you need a light entity, use ONLY the ones starting with 'light.' from the list above.
-NEVER create entities like 'light.living_room_main' or 'light.living_room_accent' - these do not exist!
+🚨 CRITICAL FOR GEMINI: 
+- You MUST use ONLY the exact entity IDs listed in "AVAILABLE ENTITIES" section above
+- DO NOT invent, create, or modify entity IDs that are not in the list
+- If you need a light, use ONLY entities starting with 'light.' that appear in the AVAILABLE ENTITIES list
+- If you need a switch, use ONLY entities starting with 'switch.' that appear in the AVAILABLE ENTITIES list
+- NEVER create fictional entities like 'light.living_room_main' or 'sensor.bedroom_temperature'
+- Copy the entity IDs EXACTLY as they appear in the list - no modifications allowed!
+- If an entity doesn't exist in the list, do not use it in the automation
 
-User Request: {user_description}"""
+User Request: {user_description}
+
+🚨 REMINDER: Only use entities that exist in the AVAILABLE ENTITIES list above!"""
             
             # Get model configuration
             model_name = self._get_config_value(CONF_MODEL, "gemini-2.5-flash")

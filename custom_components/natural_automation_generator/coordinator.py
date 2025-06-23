@@ -100,7 +100,7 @@ class NaturalAutomationGeneratorCoordinator:
         
         return clean
 
-    async def get_entities_info(self) -> str:
+    async def get_entities_info(self, max_entities_per_domain: int = None) -> str:
         """Get formatted information about all entities."""
         entity_registry = async_get_entity_registry(self.hass)
         entities_info = []
@@ -137,19 +137,29 @@ class NaturalAutomationGeneratorCoordinator:
             domains[domain].append(entity)
         
         formatted_entities = []
+        total_entities = 0
+        
         for domain, entities in domains.items():
             formatted_entities.append(f"\n{domain.upper()} ENTITIES:")
-            # Now that we have smart filtering, we can show more entities when needed
-            max_entities = 25  # Increased limit since we now use smart filtering
-            for entity in entities[:max_entities]:
+            
+            # Use all entities if no limit specified
+            entities_to_show = entities
+            if max_entities_per_domain and len(entities) > max_entities_per_domain:
+                entities_to_show = entities[:max_entities_per_domain]
+                
+            for entity in entities_to_show:
                 area_info = f" (Area: {entity['area']})" if entity['area'] else ""
-                # Keep compact format to save tokens
                 formatted_entities.append(
                     f"  - {entity['entity_id']}: {entity['name']}{area_info}"
                 )
-            if len(entities) > max_entities:
-                formatted_entities.append(f"  ... and {len(entities) - max_entities} more {domain} entities")
+                total_entities += 1
+            
+            # Show remaining count if truncated
+            if max_entities_per_domain and len(entities) > max_entities_per_domain:
+                remaining = len(entities) - max_entities_per_domain
+                formatted_entities.append(f"  ... and {remaining} more {domain} entities")
         
+        _LOGGER.debug(f"Returning {total_entities} entities to LLM")
         return "\n".join(formatted_entities)
 
     async def get_areas_info(self) -> str:
@@ -205,7 +215,7 @@ class NaturalAutomationGeneratorCoordinator:
 
     async def build_system_prompt(self) -> str:
         """Build the complete system prompt with current entities and areas."""
-        entities_info = await self.get_entities_summary()  # Use summary for system prompt to save tokens
+        entities_info = await self.get_smart_entities_info()  # ✅ השתמש בגרסה החכמה
         areas_info = await self.get_areas_info()
         
         return SYSTEM_PROMPT_TEMPLATE.format(
@@ -216,7 +226,7 @@ class NaturalAutomationGeneratorCoordinator:
     async def analyze_request(self, user_request: str) -> dict[str, Any]:
         """Analyze user request to identify missing information and ambiguities."""
         try:
-            entities_info = await self.get_smart_entities_info(user_request)
+            entities_info = await self.get_smart_entities_info(user_request)  # ✅ השתמש בגרסה החכמה
             areas_info = await self.get_areas_info()
             
             prompt = ANALYSIS_PROMPT_TEMPLATE.format(
@@ -279,9 +289,9 @@ class NaturalAutomationGeneratorCoordinator:
     async def generate_preview(self, context: dict[str, Any], language: str = "en") -> dict[str, Any]:
         """Generate a preview of the automation to be created."""
         try:
-            # Use smart entities based on context
+            # Use smart entities list for preview
             original_request = context.get("original_request", "")
-            entities_info = await self.get_smart_entities_info(original_request)
+            entities_info = await self.get_smart_entities_info(original_request)  # ✅ השתמש בגרסה החכמה
             areas_info = await self.get_areas_info()
             
             prompt = PREVIEW_PROMPT_TEMPLATE.format(
@@ -378,8 +388,8 @@ class NaturalAutomationGeneratorCoordinator:
     async def generate_general_response(self, user_request: str, language: str = "en") -> dict[str, Any]:
         """Generate response for non-automation requests."""
         try:
-            # Get entities summary for general questions
-            entities_info = await self.get_entities_summary()
+            # Get smart entities list for general questions too
+            entities_info = await self.get_smart_entities_info(user_request)  # ✅ השתמש בגרסה החכמה
             areas_info = await self.get_areas_info()
             
             prompt = GENERAL_RESPONSE_PROMPT.format(
@@ -522,11 +532,21 @@ class NaturalAutomationGeneratorCoordinator:
         return "\n".join(formatted_entities) if formatted_entities else "No matching entities found."
 
     async def get_smart_entities_info(self, user_request: str = None) -> str:
-        """Get entities intelligently - simple approach to avoid MAX_TOKENS."""
+        """Get entities intelligently - returns full list with fallback to limited if too large."""
         try:
-            # Always return just the summary to avoid MAX_TOKENS with Gemini
-            # The LLM can request more details if needed via clarification
-            return await self.get_entities_summary()
+            # Try to get full entities list
+            full_entities = await self.get_entities_info()
+            
+            # Check if the result is too large (rough token estimation)
+            # Approximate: 1 token ≈ 4 characters
+            estimated_tokens = len(full_entities) / 4
+            
+            # If estimated tokens > 15000, use limited version (leaving room for other content)
+            if estimated_tokens > 15000:
+                _LOGGER.warning(f"Entities list too large ({estimated_tokens:.0f} tokens), limiting to 50 per domain")
+                return await self.get_entities_info(max_entities_per_domain=50)
+            
+            return full_entities
                     
         except Exception as err:
             _LOGGER.error("Error in smart entity info: %s", err)
