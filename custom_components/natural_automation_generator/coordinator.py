@@ -521,60 +521,15 @@ class NaturalAutomationGeneratorCoordinator:
         return "\n".join(formatted_entities) if formatted_entities else "No matching entities found."
 
     async def get_smart_entities_info(self, user_request: str = None) -> str:
-        """Get entities intelligently - summary first, then detailed if needed."""
+        """Get entities intelligently - simple approach to avoid MAX_TOKENS."""
         try:
-            # If no specific request, return compact summary  
-            if not user_request:
-                return await self.get_entities_summary()
-            
-
-            # Step 1: Get entity summary
-            entities_summary = await self.get_entities_summary()
-            
-            # Step 2: Analyze what entities are needed for automation
-            prompt = ENTITY_ANALYSIS_PROMPT.format(
-                entities_summary=entities_summary,
-                user_request=user_request
-            )
-            
-            response = await self.provider.generate_response(prompt, ENTITY_ANALYSIS_JSON_SCHEMA)
-            
-            # Parse analysis result
-            try:
-                clean_response = self._clean_json_response(response)
-                analysis = json.loads(clean_response)
-                _LOGGER.debug("Entity analysis for '%s': %s", user_request, analysis)
-            except json.JSONDecodeError as json_err:
-                _LOGGER.error("Failed to parse entity analysis JSON: %s", json_err)
-                _LOGGER.error("Raw response: %s", response)
-                # If JSON parsing failed, likely due to MAX_TOKENS - return summary only
-                _LOGGER.warning("Entity analysis failed, returning summary only to avoid MAX_TOKENS")
-                return entities_summary
-            
-            # Step 3: Return appropriate entity information
-            if not analysis.get("needs_detailed_list", True):
-                # Summary is enough
-                return entities_summary
-            else:
-                # Get detailed filtered entities
-                domains = analysis.get("relevant_domains", [])
-                areas = analysis.get("relevant_areas", [])
-                
-                if domains or areas:
-                    # Return filtered entities
-                    detailed_entities = await self.get_filtered_entities(domains, areas)
-                    return f"{entities_summary}\n\nDETAILED ENTITIES:\n{detailed_entities}"
-                else:
-                    # No specific filter, return compact full list
-                    return await self.get_entities_info()
+            # Always return just the summary to avoid MAX_TOKENS with Gemini
+            # The LLM can request more details if needed via clarification
+            return await self.get_entities_summary()
                     
         except Exception as err:
             _LOGGER.error("Error in smart entity info: %s", err)
-            # If we have entity summary already, return it to avoid another API call
-            if 'entities_summary' in locals():
-                _LOGGER.warning("Returning summary due to error to avoid further MAX_TOKENS issues")
-                return entities_summary
-            # Last resort - return regular entity info (but this might also hit MAX_TOKENS)
-            return await self.get_entities_info()
+            # Last resort - return minimal info
+            return "Entity information temporarily unavailable."
 
  

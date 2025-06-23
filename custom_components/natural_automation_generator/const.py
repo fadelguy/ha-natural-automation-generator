@@ -3,7 +3,7 @@
 # Basic integration info
 DOMAIN = "natural_automation_generator"
 NAME = "Natural Automation Generator"
-VERSION = "2.1.3"
+VERSION = "2.1.4"
 
 # Configuration and services
 DEFAULT_NAME = "Natural Automation Generator"
@@ -24,8 +24,8 @@ AUTOMATIONS_FILE = "automations.yaml"
 # Default LLM settings
 DEFAULT_PROVIDER = "openai"
 DEFAULT_MODEL_OPENAI = "gpt-4"
-DEFAULT_MODEL_GEMINI = "gemini-1.5-flash"
-DEFAULT_MAX_TOKENS = 500
+DEFAULT_MODEL_GEMINI = "gemini-2.5-flash"
+DEFAULT_MAX_TOKENS = 1500
 DEFAULT_TEMPERATURE = 0.7
 
 # Configuration flow constants
@@ -39,12 +39,8 @@ CONF_TEMPERATURE = "temperature"
 PROVIDER_OPENAI = "openai"
 PROVIDER_GEMINI = "gemini"
 
-# Default values
-DEFAULT_MAX_TOKENS = 1500
-DEFAULT_TEMPERATURE = 0.1
-
-# Gemini specific defaults (higher token limit)
-GEMINI_DEFAULT_MAX_TOKENS = 2500
+# Gemini specific defaults (much higher token limit)
+GEMINI_DEFAULT_MAX_TOKENS = 4000
 
 # OpenAI Models
 OPENAI_MODELS = [

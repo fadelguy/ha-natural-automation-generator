@@ -111,7 +111,13 @@ User Request: {user_description}"""
                 candidate = response.candidates[0]
                 if hasattr(candidate, 'finish_reason') and candidate.finish_reason:
                     if str(candidate.finish_reason) == 'MAX_TOKENS':
-                        raise ValueError("Gemini automation response was truncated due to max_tokens limit. Try increasing max_tokens in configuration or simplify the request.")
+                        _LOGGER.warning("Gemini automation response finished with reason: %s", candidate.finish_reason)
+                        # For MAX_TOKENS, try to return partial content if available
+                        if hasattr(response, 'text') and response.text:
+                            _LOGGER.info("Returning partial Gemini response due to MAX_TOKENS")
+                            return response.text.strip()
+                        else:
+                            raise ValueError("Gemini automation response was truncated due to max_tokens limit and no partial content available. The request may be too complex - try breaking it into smaller parts.")
                     elif str(candidate.finish_reason) == 'SAFETY':
                         raise ValueError("Gemini automation response was blocked due to safety filters. Please rephrase your request.")
                     elif str(candidate.finish_reason) != 'STOP':
@@ -333,7 +339,13 @@ User Request: {user_description}"""
                 candidate = response.candidates[0]
                 if hasattr(candidate, 'finish_reason') and candidate.finish_reason:
                     if str(candidate.finish_reason) == 'MAX_TOKENS':
-                        raise ValueError("Gemini response was truncated due to max_tokens limit. Try increasing max_tokens in configuration or simplify the request.")
+                        _LOGGER.warning("Gemini response finished with reason: %s", candidate.finish_reason)
+                        # For MAX_TOKENS, try to return partial content if available
+                        if hasattr(response, 'text') and response.text:
+                            _LOGGER.info("Returning partial Gemini response due to MAX_TOKENS")
+                            return response.text.strip()
+                        else:
+                            raise ValueError("Gemini response was truncated due to max_tokens limit and no partial content available. The request may be too complex - try breaking it into smaller parts.")
                     elif str(candidate.finish_reason) == 'SAFETY':
                         raise ValueError("Gemini response was blocked due to safety filters. Please rephrase your request.")
                     elif str(candidate.finish_reason) != 'STOP':
