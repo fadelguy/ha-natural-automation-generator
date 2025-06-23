@@ -18,6 +18,9 @@ PROVIDER_GEMINI = "gemini"
 DEFAULT_MAX_TOKENS = 1500
 DEFAULT_TEMPERATURE = 0.1
 
+# Gemini specific defaults (higher token limit)
+GEMINI_DEFAULT_MAX_TOKENS = 2500
+
 # OpenAI Models
 OPENAI_MODELS = [
     "gpt-4.1",
@@ -439,6 +442,66 @@ INTENT_ANALYSIS_JSON_SCHEMA = {
             }
         },
         "required": ["intent", "confidence"],
+        "additionalProperties": False
+    }
+}
+
+# Entity analysis prompt for smart filtering
+ENTITY_ANALYSIS_PROMPT = """You are an expert Home Assistant analyst. Based on the user's request and the available entity summary, determine what specific entities the user might need.
+
+ENTITY SUMMARY:
+{entities_summary}
+
+USER REQUEST: {user_request}
+
+Analyze the request and determine:
+1. What entity domains (types) are relevant
+2. What areas/rooms are relevant  
+3. Whether we need detailed entity list or summary is enough
+
+Return JSON:
+{{
+  "relevant_domains": ["light", "sensor"],  // Empty array if not specific
+  "relevant_areas": ["living_room"],        // Empty array if not specific  
+  "needs_detailed_list": true,              // true if need specific entity IDs
+  "reasoning": "User wants to turn on lights in living room, so need light domain and living_room area"
+}}
+
+Examples:
+- "Turn on living room lights" → domains:["light"], areas:["living_room"], needs_detailed_list:true
+- "What can you do?" → domains:[], areas:[], needs_detailed_list:false  
+- "Create automation for temperature" → domains:["sensor","climate"], areas:[], needs_detailed_list:true
+
+Return ONLY the JSON, no additional text.
+"""
+
+# JSON Schema for entity analysis
+ENTITY_ANALYSIS_JSON_SCHEMA = {
+    "name": "entity_analysis",
+    "description": "Analysis of what entities are needed for the user request",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "relevant_domains": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of entity domains needed (light, sensor, etc.)"
+            },
+            "relevant_areas": {
+                "type": "array", 
+                "items": {"type": "string"},
+                "description": "List of area IDs needed"
+            },
+            "needs_detailed_list": {
+                "type": "boolean",
+                "description": "Whether detailed entity list is needed"
+            },
+            "reasoning": {
+                "type": "string",
+                "description": "Explanation of the analysis"
+            }
+        },
+        "required": ["relevant_domains", "relevant_areas", "needs_detailed_list", "reasoning"],
         "additionalProperties": False
     }
 } 

@@ -159,7 +159,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         if coordinators:
             coordinator = coordinators[0]
             try:
-                entities_info = await coordinator.get_entities_info()
+                entities_info = await coordinator.get_entities_summary()  # Use summary for service
                 areas_info = await coordinator.get_areas_info()
                 
                 # Fire event with entities list

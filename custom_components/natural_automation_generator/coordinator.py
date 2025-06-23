@@ -26,6 +26,8 @@ from .const import (
     SYSTEM_PROMPT_TEMPLATE,
     ANALYSIS_JSON_SCHEMA,
     INTENT_ANALYSIS_JSON_SCHEMA,
+    ENTITY_ANALYSIS_PROMPT,
+    ENTITY_ANALYSIS_JSON_SCHEMA,
 )
 from .llm_providers.base import BaseLLMProvider
 from .llm_providers.openai_provider import OpenAIProvider
@@ -113,14 +115,16 @@ class NaturalAutomationGeneratorCoordinator:
         formatted_entities = []
         for domain, entities in domains.items():
             formatted_entities.append(f"\n{domain.upper()} ENTITIES:")
-            for entity in entities[:20]:  # Limit to prevent token overflow
+            # Now that we have smart filtering, we can show more entities when needed
+            max_entities = 25  # Increased limit since we now use smart filtering
+            for entity in entities[:max_entities]:
                 area_info = f" (Area: {entity['area']})" if entity['area'] else ""
-                state_info = f" [State: {entity['state']}]"
+                # Keep compact format to save tokens
                 formatted_entities.append(
-                    f"  - {entity['entity_id']}: {entity['name']}{area_info}{state_info}"
+                    f"  - {entity['entity_id']}: {entity['name']}{area_info}"
                 )
-            if len(entities) > 20:
-                formatted_entities.append(f"  ... and {len(entities) - 20} more {domain} entities")
+            if len(entities) > max_entities:
+                formatted_entities.append(f"  ... and {len(entities) - max_entities} more {domain} entities")
         
         return "\n".join(formatted_entities)
 
@@ -137,11 +141,60 @@ class NaturalAutomationGeneratorCoordinator:
         
         return "AREAS:\n" + "\n".join(areas_info)
 
-
+    async def get_entities_summary(self) -> str:
+        """Get a compact summary of available entities to save tokens."""
+        entity_registry = async_get_entity_registry(self.hass)
+        area_registry = async_get_area_registry(self.hass)
+        
+        # Count entities by domain
+        domain_counts = {}
+        area_entities = {}
+        
+        for entity in entity_registry.entities.values():
+            if entity.disabled:
+                continue
+                
+            state = self.hass.states.get(entity.entity_id)
+            if state is None:
+                continue
+            
+            # Count by domain
+            domain = entity.domain
+            domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            
+            # Group by area
+            area_id = entity.area_id or "no_area"
+            if area_id not in area_entities:
+                area_entities[area_id] = set()
+            area_entities[area_id].add(domain)
+        
+        # Build compact summary
+        summary_parts = []
+        
+        # Domain counts
+        domain_list = [f"{domain}({count})" for domain, count in sorted(domain_counts.items())]
+        summary_parts.append(f"AVAILABLE DOMAINS: {', '.join(domain_list)}")
+        
+        # Available areas
+        area_names = []
+        for area in area_registry.areas.values():
+            area_names.append(area.id)
+        if area_names:
+            summary_parts.append(f"AVAILABLE AREAS: {', '.join(sorted(area_names))}")
+        
+        # Entity examples by area (very compact)
+        summary_parts.append("EXAMPLES:")
+        for area_id, domains in list(area_entities.items())[:5]:  # Only first 5 areas
+            if area_id == "no_area":
+                continue
+            domain_str = ", ".join(sorted(domains))
+            summary_parts.append(f"  - {area_id}: {domain_str}")
+        
+        return "\n".join(summary_parts)
 
     async def build_system_prompt(self) -> str:
         """Build the complete system prompt with current entities and areas."""
-        entities_info = await self.get_entities_info()
+        entities_info = await self.get_entities_summary()  # Use summary for system prompt to save tokens
         areas_info = await self.get_areas_info()
         
         return SYSTEM_PROMPT_TEMPLATE.format(
@@ -152,7 +205,7 @@ class NaturalAutomationGeneratorCoordinator:
     async def analyze_request(self, user_request: str) -> dict[str, Any]:
         """Analyze user request to identify missing information and ambiguities."""
         try:
-            entities_info = await self.get_entities_info()
+            entities_info = await self.get_smart_entities_info(user_request)
             areas_info = await self.get_areas_info()
             
             prompt = ANALYSIS_PROMPT_TEMPLATE.format(
@@ -215,7 +268,9 @@ class NaturalAutomationGeneratorCoordinator:
     async def generate_preview(self, context: dict[str, Any], language: str = "en") -> dict[str, Any]:
         """Generate a preview of the automation to be created."""
         try:
-            entities_info = await self.get_entities_info()
+            # Use smart entities based on context
+            original_request = context.get("original_request", "")
+            entities_info = await self.get_smart_entities_info(original_request)
             areas_info = await self.get_areas_info()
             
             prompt = PREVIEW_PROMPT_TEMPLATE.format(
@@ -312,7 +367,7 @@ class NaturalAutomationGeneratorCoordinator:
     async def generate_general_response(self, user_request: str, language: str = "en") -> dict[str, Any]:
         """Generate response for non-automation requests."""
         try:
-            entities_info = await self.get_entities_info()
+            entities_info = await self.get_smart_entities_info(user_request)
             areas_info = await self.get_areas_info()
             
             prompt = GENERAL_RESPONSE_PROMPT.format(
@@ -401,5 +456,107 @@ class NaturalAutomationGeneratorCoordinator:
                 "success": False,
                 "error": str(err)
             }
+
+    async def get_filtered_entities(self, domains: list[str] = None, areas: list[str] = None, limit_per_domain: int = 15) -> str:
+        """Get entities filtered by domains and areas."""
+        entity_registry = async_get_entity_registry(self.hass)
+        entities_info = []
+        
+        for entity in entity_registry.entities.values():
+            if entity.disabled:
+                continue
+                
+            state = self.hass.states.get(entity.entity_id)
+            if state is None:
+                continue
+            
+            # Filter by domain if specified
+            if domains and entity.domain not in domains:
+                continue
+                
+            # Filter by area if specified
+            if areas and entity.area_id not in areas:
+                continue
+            
+            # Get entity info (compact format)
+            entity_info = {
+                "entity_id": entity.entity_id,
+                "name": entity.name or state.attributes.get("friendly_name", entity.entity_id),
+                "domain": entity.domain,
+                "area": entity.area_id,
+            }
+            
+            entities_info.append(entity_info)
+        
+        # Group by domain and format
+        domain_groups = {}
+        for entity in entities_info:
+            domain = entity["domain"]
+            if domain not in domain_groups:
+                domain_groups[domain] = []
+            domain_groups[domain].append(entity)
+        
+        formatted_entities = []
+        for domain, entities in domain_groups.items():
+            formatted_entities.append(f"\n{domain.upper()} ENTITIES:")
+            for entity in entities[:limit_per_domain]:  # Limit per domain
+                area_info = f" ({entity['area']})" if entity['area'] else ""
+                formatted_entities.append(
+                    f"  - {entity['entity_id']}: {entity['name']}{area_info}"
+                )
+            if len(entities) > limit_per_domain:
+                formatted_entities.append(f"  ... and {len(entities) - limit_per_domain} more {domain} entities")
+        
+        return "\n".join(formatted_entities) if formatted_entities else "No matching entities found."
+
+    async def get_smart_entities_info(self, user_request: str = None) -> str:
+        """Get entities intelligently - summary first, then detailed if needed."""
+        try:
+            # If no specific request, return compact summary  
+            if not user_request:
+                return await self.get_entities_summary()
+            
+            # Step 1: Get entity summary
+            entities_summary = await self.get_entities_summary()
+            
+            # Step 2: Analyze what entities are needed
+            prompt = ENTITY_ANALYSIS_PROMPT.format(
+                entities_summary=entities_summary,
+                user_request=user_request
+            )
+            
+            response = await self.provider.generate_response(prompt, ENTITY_ANALYSIS_JSON_SCHEMA)
+            
+            # Parse analysis result
+            try:
+                clean_response = self._clean_json_response(response)
+                analysis = json.loads(clean_response)
+                _LOGGER.debug("Entity analysis for '%s': %s", user_request, analysis)
+            except json.JSONDecodeError as json_err:
+                _LOGGER.error("Failed to parse entity analysis JSON: %s", json_err)
+                # Fallback to full entity list
+                return await self.get_entities_info()
+            
+            # Step 3: Return appropriate entity information
+            if not analysis.get("needs_detailed_list", True):
+                # Summary is enough
+                return entities_summary
+            else:
+                # Get detailed filtered entities
+                domains = analysis.get("relevant_domains", [])
+                areas = analysis.get("relevant_areas", [])
+                
+                if domains or areas:
+                    # Return filtered entities
+                    detailed_entities = await self.get_filtered_entities(domains, areas)
+                    return f"{entities_summary}\n\nDETAILED ENTITIES:\n{detailed_entities}"
+                else:
+                    # No specific filter, return compact full list
+                    return await self.get_entities_info()
+                    
+        except Exception as err:
+            _LOGGER.error("Error in smart entity info: %s", err)
+            # Fallback to regular entity info
+            return await self.get_entities_info()
 
  

@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from ..const import CONF_API_KEY, CONF_MAX_TOKENS, CONF_MODEL, CONF_TEMPERATURE
+from ..const import CONF_API_KEY, CONF_MAX_TOKENS, CONF_MODEL, CONF_TEMPERATURE, GEMINI_DEFAULT_MAX_TOKENS
 from .base import BaseLLMProvider
 
 _LOGGER = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ User Request: {user_description}"""
             
             # Get model configuration
             model_name = self._get_config_value(CONF_MODEL, "gemini-2.5-flash")
-            max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
+            max_tokens = self._get_config_value(CONF_MAX_TOKENS, GEMINI_DEFAULT_MAX_TOKENS)
             temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
             
             # Generate content using new SDK with optimized settings (in executor)
@@ -105,6 +105,17 @@ User Request: {user_description}"""
             
             _LOGGER.debug("Gemini automation response object: %s", response)
             _LOGGER.debug("Gemini automation response text: %s", getattr(response, 'text', 'No text attribute'))
+            
+            # Check if response was truncated due to max tokens
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'finish_reason') and candidate.finish_reason:
+                    if str(candidate.finish_reason) == 'MAX_TOKENS':
+                        raise ValueError("Gemini automation response was truncated due to max_tokens limit. Try increasing max_tokens in configuration or simplify the request.")
+                    elif str(candidate.finish_reason) == 'SAFETY':
+                        raise ValueError("Gemini automation response was blocked due to safety filters. Please rephrase your request.")
+                    elif str(candidate.finish_reason) != 'STOP':
+                        _LOGGER.warning("Gemini automation response finished with reason: %s", candidate.finish_reason)
             
             if not hasattr(response, 'text') or not response.text:
                 raise ValueError(f"Empty response from Gemini. Response object: {response}")
@@ -274,7 +285,7 @@ User Request: {user_description}"""
             
             # Get model configuration
             model_name = self._get_config_value(CONF_MODEL, "gemini-2.5-flash")
-            max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
+            max_tokens = self._get_config_value(CONF_MAX_TOKENS, GEMINI_DEFAULT_MAX_TOKENS)
             temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
             
             # Build config
@@ -316,6 +327,17 @@ User Request: {user_description}"""
             
             _LOGGER.debug("Gemini response object: %s", response)
             _LOGGER.debug("Gemini response text: %s", getattr(response, 'text', 'No text attribute'))
+            
+            # Check if response was truncated due to max tokens
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'finish_reason') and candidate.finish_reason:
+                    if str(candidate.finish_reason) == 'MAX_TOKENS':
+                        raise ValueError("Gemini response was truncated due to max_tokens limit. Try increasing max_tokens in configuration or simplify the request.")
+                    elif str(candidate.finish_reason) == 'SAFETY':
+                        raise ValueError("Gemini response was blocked due to safety filters. Please rephrase your request.")
+                    elif str(candidate.finish_reason) != 'STOP':
+                        _LOGGER.warning("Gemini response finished with reason: %s", candidate.finish_reason)
             
             if not hasattr(response, 'text') or not response.text:
                 raise ValueError(f"Empty response from Gemini. Response object: {response}")
