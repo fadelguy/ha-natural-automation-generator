@@ -163,7 +163,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         await _update_progress_entity(self.hass, agent_id, "🔍 Analyzing automation request...")
         
         # Analyze the request
-        analysis_result = await self._coordinator.analyze_request(user_text, chat_log, agent_id)
+        analysis_result = await self._coordinator.analyze_request(user_text)
         
         if not analysis_result["success"]:
             context.step = STEP_ERROR
@@ -381,15 +381,10 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
 
     def _create_conversation_result(self, response: str) -> conversation.ConversationResult:
         """Create a conversation result."""
+        intent_response = intent.IntentResponse(language="*")
+        intent_response.async_set_speech(response)
         return conversation.ConversationResult(
-            response=conversation.ConversationResponse(
-                response_type=intent.IntentResponseType.ACTION_DONE,
-                language="*",  # Support all languages
-                intent=None,
-                speech={"plain": {"speech": response, "extra_data": None}},
-                card=None,
-                error_code=None,
-            ),
+            response=intent_response,
             conversation_id=None,
         )
 
