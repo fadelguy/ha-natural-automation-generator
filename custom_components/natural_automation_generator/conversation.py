@@ -115,8 +115,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             elif context.step == STEP_AWAITING_APPROVAL:
                 await self._add_progress_message(chat_log, user_input.agent_id, "⚡ מעבד את האישור...")
                 response_text = await self._handle_approval_response(context, user_input.text)
-            elif context.step == "welcome":
-                response_text = await self._handle_welcome(context)
+
             else:
                 # Handle non-automation requests (entity listing, help, etc.)
                 await self._add_progress_message(chat_log, user_input.agent_id, "📋 מכין מידע...")
@@ -170,27 +169,10 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
                 step=STEP_ANALYSIS
             )
             self._conversations[conversation_id] = context
-            
-            # Check if this is a brand new conversation (empty or greeting text)
-            greeting_keywords = ["", "hello", "hi", "hey", "שלום", "היי", "הלו", "how can i assist"]
-            if user_text.lower().strip() in greeting_keywords or len(user_text.strip()) == 0:
-                context.step = "welcome"
         
         return self._conversations[conversation_id]
 
-    async def _handle_welcome(self, context: ConversationContext) -> str:
-        """Handle welcome message for new conversations."""
-        # Detect language from any previous context or default to Hebrew if no clear indication
-        language = "he"  # Default to Hebrew since user asked in Hebrew
-        
-        if language == "he":
-            welcome_msg = "שלום! 👋\n\nאני כאן כדי לעזור לך ליצור אוטומציות של Home Assistant בשפה טבעית.\n\nפשוט תגיד לי מה תרצה להפוך לאוטומטי - למשל:\n• \"תדליק את האור במטבח בשבע בבוקר\"\n• \"תסגור את התריסים בשקיעה\"\n• \"תפעיל את המאוורר כשהטמפרטורה עולה\"\n\nמה תרצה ליצור? 🏠✨"
-        else:
-            welcome_msg = "Hello! 👋\n\nI'm here to help you create Home Assistant automations using natural language.\n\nJust tell me what you'd like to automate - for example:\n• \"Turn on kitchen light at 7 AM\"\n• \"Close blinds at sunset\"\n• \"Turn on fan when temperature rises\"\n\nWhat would you like to create? 🏠✨"
-        
-        # Reset context to normal analysis for next message
-        context.step = STEP_ANALYSIS
-        return welcome_msg
+
 
     async def _handle_initial_request(self, context: ConversationContext, user_text: str) -> str:
         """Handle the initial automation request and analyze it."""
@@ -208,7 +190,7 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         context.language = analysis.get("language", "en")
         
         # Check if this is automation-related
-        if analysis.get("intent") != "create_automation":
+        if not analysis.get("is_automation_request", False):
             # This is a general request, not automation
             context.step = "general"
             return await self._handle_general_request(user_text, context.language)

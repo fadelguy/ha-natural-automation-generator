@@ -3,7 +3,7 @@
 # Basic integration info
 DOMAIN = "natural_automation_generator"
 NAME = "Natural Automation Generator"
-VERSION = "2.1.6"
+VERSION = "2.1.7"
 
 # Configuration and services
 DEFAULT_NAME = NAME
@@ -125,19 +125,19 @@ Only return JSON.
 """
 
 GENERAL_RESPONSE_PROMPT = """
-User asked a general question.
+Answer briefly and to the point.
 
 🗣 Request: {user_request}
 🌐 Language: {language}
 📦 Entities: {entities}
 📍 Areas: {areas}
 
-Respond helpfully in the user's language:
-- Explain automation features
-- List devices (if requested)
-- Use emojis and formatting
+Give a short, helpful answer in the user's language. 
+Be concise - maximum 2-3 sentences.
+Only provide entity/area lists if specifically asked.
+Don't explain everything - just answer what was asked.
 
-Return response text only.
+Return brief response only.
 """
 
 SUCCESS_RESPONSE_PROMPT = """

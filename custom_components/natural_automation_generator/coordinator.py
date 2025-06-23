@@ -378,7 +378,8 @@ class NaturalAutomationGeneratorCoordinator:
     async def generate_general_response(self, user_request: str, language: str = "en") -> dict[str, Any]:
         """Generate response for non-automation requests."""
         try:
-            entities_info = await self.get_smart_entities_info(user_request)
+            # Get entities summary for general questions
+            entities_info = await self.get_entities_summary()
             areas_info = await self.get_areas_info()
             
             prompt = GENERAL_RESPONSE_PROMPT.format(
