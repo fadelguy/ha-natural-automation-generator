@@ -265,10 +265,7 @@ class NaturalAutomationGeneratorCoordinator:
     async def generate_clarification(self, original_request: str, analysis_results: dict[str, Any]) -> dict[str, Any]:
         """Generate a clarifying question based on analysis results."""
         try:
-            language = analysis_results.get("language", "en")
-            
             prompt = CLARIFICATION_PROMPT_TEMPLATE.format(
-                language=language,
                 original_request=original_request,
                 analysis_results=json.dumps(analysis_results, indent=2)
             )
@@ -278,8 +275,7 @@ class NaturalAutomationGeneratorCoordinator:
             _LOGGER.debug("Generated clarification for request: %s", original_request)
             return {
                 "success": True,
-                "question": response.strip(),
-                "language": language
+                "question": response.strip()
             }
         except Exception as err:
             _LOGGER.error("Failed to generate clarification: %s", err)
@@ -288,7 +284,7 @@ class NaturalAutomationGeneratorCoordinator:
                 "error": str(err)
             }
 
-    async def generate_preview(self, context: dict[str, Any], language: str = "en") -> dict[str, Any]:
+    async def generate_preview(self, context: dict[str, Any]) -> dict[str, Any]:
         """Generate a preview of the automation to be created."""
         try:
             # Use smart entities list for preview
@@ -297,7 +293,6 @@ class NaturalAutomationGeneratorCoordinator:
             areas_info = await self.get_areas_info()
             
             prompt = PREVIEW_PROMPT_TEMPLATE.format(
-                language=language,
                 context=json.dumps(context, indent=2),
                 entities=entities_info,
                 areas=areas_info
@@ -308,8 +303,7 @@ class NaturalAutomationGeneratorCoordinator:
             _LOGGER.debug("Generated preview for context: %s", context)
             return {
                 "success": True,
-                "preview": response.strip(),
-                "language": language
+                "preview": response.strip()
             }
         except Exception as err:
             _LOGGER.error("Failed to generate preview: %s", err)
@@ -387,7 +381,7 @@ class NaturalAutomationGeneratorCoordinator:
                 "description": context.get("original_request", "Unknown request"),
             }
 
-    async def generate_general_response(self, user_request: str, language: str = "en") -> dict[str, Any]:
+    async def generate_general_response(self, user_request: str) -> dict[str, Any]:
         """Generate response for non-automation requests."""
         try:
             # Get smart entities list for general questions too
@@ -396,7 +390,6 @@ class NaturalAutomationGeneratorCoordinator:
             
             prompt = GENERAL_RESPONSE_PROMPT.format(
                 user_request=user_request,
-                language=language,
                 entities=entities_info,
                 areas=areas_info
             )
@@ -415,11 +408,10 @@ class NaturalAutomationGeneratorCoordinator:
                 "error": str(err)
             }
 
-    async def generate_success_response(self, language: str, automation_name: str, description: str, yaml_config: str) -> dict[str, Any]:
+    async def generate_success_response(self, automation_name: str, description: str, yaml_config: str) -> dict[str, Any]:
         """Generate success message for completed automation."""
         try:
             prompt = SUCCESS_RESPONSE_PROMPT.format(
-                language=language,
                 automation_name=automation_name,
                 description=description,
                 yaml_config=yaml_config
@@ -439,10 +431,10 @@ class NaturalAutomationGeneratorCoordinator:
                 "error": str(err)
             }
 
-    async def generate_cancellation_response(self, language: str) -> dict[str, Any]:
+    async def generate_cancellation_response(self) -> dict[str, Any]:
         """Generate cancellation message."""
         try:
-            prompt = CANCELLATION_RESPONSE_PROMPT.format(language=language)
+            prompt = CANCELLATION_RESPONSE_PROMPT
             
             response = await self.provider.generate_response(prompt)
             
@@ -458,11 +450,10 @@ class NaturalAutomationGeneratorCoordinator:
                 "error": str(err)
             }
 
-    async def generate_error_response(self, language: str, error: str, context: str = "") -> dict[str, Any]:
+    async def generate_error_response(self, error: str, context: str = "") -> dict[str, Any]:
         """Generate error message."""
         try:
             prompt = ERROR_RESPONSE_PROMPT.format(
-                language=language,
                 error=error,
                 context=context
             )

@@ -3,7 +3,7 @@
 # Basic integration info
 DOMAIN = "natural_automation_generator"
 NAME = "Natural Automation Generator"
-VERSION = "2.2.1"
+VERSION = "2.2.2"
 
 # Configuration and services
 DEFAULT_NAME = NAME
@@ -136,12 +136,11 @@ GENERAL_RESPONSE_PROMPT = """
 Answer briefly and to the point.
 
 🗣 Request: {user_request}
-🌐 Language: {language}
 📦 Entities: {entities}
 📍 Areas: {areas}
 
-Give a short, helpful answer in the user's language. 
-Be concise - maximum 2-3 sentences.
+🌐 ALWAYS respond in the same language as the user's request.
+Give a short, helpful answer - maximum 2-3 sentences.
 Only provide entity/area lists if specifically asked.
 Don't explain everything - just answer what was asked.
 
@@ -151,13 +150,13 @@ Return brief response only.
 SUCCESS_RESPONSE_PROMPT = """
 Automation created successfully.
 
-🌐 Language: {language}
 📝 Name: {automation_name}
 📄 Description: {description}
 🧾 YAML:
 {yaml_config}
 
-Respond positively in user's language with:
+🌐 ALWAYS respond in the same language as the user's original request.
+Respond positively with:
 1. Confirmation
 2. Name & description
 3. YAML shown nicely
@@ -169,8 +168,7 @@ Return message only.
 CANCELLATION_RESPONSE_PROMPT = """
 User cancelled automation.
 
-🌐 Language: {language}
-
+🌐 ALWAYS respond in the same language as the user's request.
 Acknowledge the cancellation, offer to restart anytime. Friendly tone.
 
 Return message only.
@@ -179,9 +177,10 @@ Return message only.
 ERROR_RESPONSE_PROMPT = """
 Error occurred in automation creation.
 
-🌐 Language: {language}
-⚠️ Context: {context}
+⚠️ Error: {error}
+📝 Context: {context}
 
+🌐 ALWAYS respond in the same language as the user's request.
 Explain there's an error without technical details. Offer helpful next steps.
 
 Return message only.
@@ -190,10 +189,10 @@ Return message only.
 CLARIFICATION_PROMPT_TEMPLATE = """
 Ask user a clarifying question based on analysis.
 
-🌐 Language: {language}
 🗣 Request: {original_request}
 📊 Analysis: {analysis_results}
 
+🌐 ALWAYS respond in the same language as the user's request.
 Use friendly formatting with emojis.
 Examples:
 - Multiple entities ➜ list with names & IDs
@@ -206,11 +205,11 @@ Return question only.
 PREVIEW_PROMPT_TEMPLATE = """
 Create a preview of the planned automation.
 
-🌐 Language: {language}
 📋 Info: {context}
 📦 Entities: {entities}
 📍 Areas: {areas}
 
+🌐 ALWAYS respond in the same language as the user's original request.
 Summarize clearly:
 - What it does
 - When it runs
