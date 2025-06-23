@@ -16,6 +16,8 @@ from .const import (
     APPROVAL_ANALYSIS_PROMPT,
     CANCELLATION_RESPONSE_PROMPT,
     CLARIFICATION_PROMPT_TEMPLATE,
+    CLARIFICATION_RESPONSE_ANALYSIS_PROMPT,
+    CLARIFICATION_RESPONSE_JSON_SCHEMA,
     CONF_LLM_PROVIDER,
     ERROR_RESPONSE_PROMPT,
     GENERAL_RESPONSE_PROMPT,
@@ -552,5 +554,104 @@ class NaturalAutomationGeneratorCoordinator:
             _LOGGER.error("Error in smart entity info: %s", err)
             # Last resort - return minimal info
             return "Entity information temporarily unavailable."
+
+    async def analyze_clarification_response(self, original_request: str, clarification_question: str, user_response: str) -> dict[str, Any]:
+        """Analyze user's response to a clarification question using LLM."""
+        try:
+            entities_info = await self.get_smart_entities_info()
+            areas_info = await self.get_areas_info()
+            
+            prompt = CLARIFICATION_RESPONSE_ANALYSIS_PROMPT.format(
+                entities=entities_info,
+                areas=areas_info,
+                original_request=original_request,
+                clarification_question=clarification_question,
+                user_response=user_response
+            )
+            
+            response = await self.provider.generate_response(prompt, CLARIFICATION_RESPONSE_JSON_SCHEMA)
+            
+            # Clean and parse JSON response
+            try:
+                clean_response = self._clean_json_response(response)
+                analysis_result = json.loads(clean_response)
+                _LOGGER.debug("Clarification response analysis: %s", analysis_result)
+                return {
+                    "success": True,
+                    "analysis": analysis_result
+                }
+            except json.JSONDecodeError as json_err:
+                _LOGGER.error("Failed to parse clarification response JSON: %s", json_err)
+                _LOGGER.error("Raw response: %s", response)
+                return {
+                    "success": False,
+                    "error": f"Invalid JSON response: {json_err}"
+                }
+        except Exception as err:
+            _LOGGER.error("Failed to analyze clarification response: %s", err)
+            return {
+                "success": False,
+                "error": str(err)
+            }
+
+    async def analyze_conversation_flow(self, user_message: str, conversation_history: str, context_info: dict, current_step: str) -> dict[str, Any]:
+        """Analyze conversation flow and decide what to do next using LLM."""
+        try:
+            entities_info = await self.get_smart_entities_info()
+            areas_info = await self.get_areas_info()
+            
+            # Use the simpler analysis prompt for now (we can enhance later)
+            prompt = ANALYSIS_PROMPT_TEMPLATE.format(
+                entities=entities_info,
+                areas=areas_info,
+                user_request=f"Context: {context_info}\nHistory: {conversation_history}\nCurrent message: {user_message}"
+            )
+            
+            response = await self.provider.generate_response(prompt, ANALYSIS_JSON_SCHEMA)
+            
+            # Clean and parse JSON response
+            try:
+                clean_response = self._clean_json_response(response)
+                analysis_result = json.loads(clean_response)
+                
+                # Convert simple analysis to conversation flow format
+                converted_result = {
+                    "conversation_type": "automation" if analysis_result.get("is_automation_request", False) else "general",
+                    "language": analysis_result.get("language", "en"),
+                    "next_action": "ask_clarification" if analysis_result.get("needs_clarification", False) else "show_preview",
+                    "user_intent": {
+                        "wants_automation": analysis_result.get("is_automation_request", False),
+                        "approval_response": "unclear",
+                        "entity_selection": "",
+                        "modification_request": ""
+                    },
+                    "response_needed": {
+                        "type": "question" if analysis_result.get("needs_clarification", False) else "info",
+                        "content": "",
+                        "entities_to_mention": [],
+                        "missing_info": analysis_result.get("missing_info", [])
+                    },
+                    "ready_to_proceed": not analysis_result.get("needs_clarification", False),
+                    "automation_details": analysis_result.get("understood", {})
+                }
+                
+                _LOGGER.debug("Conversation flow analysis: %s", converted_result)
+                return {
+                    "success": True,
+                    "analysis": converted_result
+                }
+            except json.JSONDecodeError as json_err:
+                _LOGGER.error("Failed to parse conversation flow JSON: %s", json_err)
+                _LOGGER.error("Raw response: %s", response)
+                return {
+                    "success": False,
+                    "error": f"Invalid JSON response: {json_err}"
+                }
+        except Exception as err:
+            _LOGGER.error("Failed to analyze conversation flow: %s", err)
+            return {
+                "success": False,
+                "error": str(err)
+            }
 
  

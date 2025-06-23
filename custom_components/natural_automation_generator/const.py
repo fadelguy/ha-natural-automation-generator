@@ -3,7 +3,7 @@
 # Basic integration info
 DOMAIN = "natural_automation_generator"
 NAME = "Natural Automation Generator"
-VERSION = "2.1.9"
+VERSION = "2.2.0"
 
 # Configuration and services
 DEFAULT_NAME = NAME
@@ -109,6 +109,8 @@ You classify user requests.
 📦 Entities: {entities}
 📍 Areas: {areas}
 🗣 User: {user_request}
+
+⚠️ CRITICAL: Use ONLY exact entity IDs from the entities list above.
 
 Classify if this is an automation request (explicit intent only).
 
@@ -250,6 +252,37 @@ Return JSON:
 
 JSON only.
 """
+
+CLARIFICATION_RESPONSE_ANALYSIS_PROMPT = """
+Analyze user's response to a clarification question.
+
+📦 Available Entities: {entities}
+📍 Available Areas: {areas}
+🗣 Original Request: {original_request}
+❓ Clarification Question: {clarification_question}
+💬 User Response: {user_response}
+
+🎯 Task: Determine what the user selected/specified in their response.
+
+⚠️ CRITICAL: Use ONLY exact entity IDs from the entities list above.
+
+Return JSON:
+{{
+  "understood_selection": {{
+    "entity_id": "exact_entity_id_if_selected",
+    "action": "turn_on|turn_off|open|close",
+    "area": "exact_area_id", 
+    "time": "specific_time_if_mentioned",
+    "description": "what_user_said"
+  }},
+  "needs_more_clarification": true/false,
+  "ready_for_automation": true/false,
+  "next_missing_info": ["entity", "time", "conditions"]
+}}
+
+Only return JSON.
+"""
+
 # JSON Schemas for OpenAI structured responses
 ANALYSIS_JSON_SCHEMA = {
     "name": "analysis_response",
@@ -348,6 +381,139 @@ ENTITY_ANALYSIS_JSON_SCHEMA = {
             }
         },
         "required": ["relevant_domains", "relevant_areas", "needs_detailed_list", "reasoning"],
+        "additionalProperties": False
+    }
+} 
+CLARIFICATION_RESPONSE_JSON_SCHEMA = {
+    "name": "clarification_response_analysis",
+    "description": "Analysis of user's response to clarification question",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "understood_selection": {
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string"},
+                    "action": {"type": "string"},
+                    "area": {"type": "string"},
+                    "time": {"type": "string"},
+                    "description": {"type": "string"}
+                }
+            },
+            "needs_more_clarification": {
+                "type": "boolean",
+                "description": "Whether more clarification is needed"
+            },
+            "ready_for_automation": {
+                "type": "boolean",
+                "description": "Whether we have enough info to create automation"
+            },
+            "next_missing_info": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "What information is still missing"
+            }
+        },
+        "required": ["understood_selection", "needs_more_clarification", "ready_for_automation"],
+        "additionalProperties": False
+    }
+} 
+
+CONVERSATION_MANAGEMENT_PROMPT = """
+You are managing a conversation for Home Assistant automation creation.
+
+📦 Available Entities: {entities}
+📍 Available Areas: {areas}
+🗣 User Message: {user_message}
+📜 Conversation History: {conversation_history}
+🎯 Context: {context}
+
+🧠 Your Task: Analyze the current state and decide what to do next.
+
+⚠️ CRITICAL: Use ONLY exact entity IDs from the entities list above.
+
+Analyze the conversation and return JSON:
+{{
+  "conversation_type": "automation|general|help",
+  "language": "he|en",
+  "next_action": "ask_clarification|show_preview|create_automation|provide_info|handle_approval",
+  "user_intent": {{
+    "wants_automation": true/false,
+    "approval_response": "approve|reject|modify|unclear",
+    "entity_selection": "exact_entity_id_if_mentioned",
+    "modification_request": "what_user_wants_to_change"
+  }},
+  "response_needed": {{
+    "type": "question|preview|success|info|error",
+    "content": "what_to_say_to_user",
+    "entities_to_mention": ["entity1", "entity2"],
+    "missing_info": ["entity", "time", "conditions"]
+  }},
+  "ready_to_proceed": true/false,
+  "automation_details": {{
+    "action": "turn_on|turn_off|open|close", 
+    "entity_id": "exact_entity_id",
+    "area": "exact_area_id",
+    "time": "specific_time",
+    "conditions": "any_conditions"
+  }}
+}}
+
+Only return JSON.
+"""
+
+CONVERSATION_MANAGEMENT_JSON_SCHEMA = {
+    "name": "conversation_management",
+    "description": "Complete conversation management analysis",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "conversation_type": {
+                "type": "string",
+                "enum": ["automation", "general", "help"],
+                "description": "Type of conversation"
+            },
+            "language": {
+                "type": "string",
+                "enum": ["he", "en"],
+                "description": "Detected language"
+            },
+            "next_action": {
+                "type": "string", 
+                "enum": ["ask_clarification", "show_preview", "create_automation", "provide_info", "handle_approval"],
+                "description": "What to do next"
+            },
+            "user_intent": {
+                "type": "object",
+                "properties": {
+                    "wants_automation": {"type": "boolean"},
+                    "approval_response": {"type": "string", "enum": ["approve", "reject", "modify", "unclear"]},
+                    "entity_selection": {"type": "string"},
+                    "modification_request": {"type": "string"}
+                }
+            },
+            "response_needed": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "enum": ["question", "preview", "success", "info", "error"]},
+                    "content": {"type": "string"},
+                    "entities_to_mention": {"type": "array", "items": {"type": "string"}},
+                    "missing_info": {"type": "array", "items": {"type": "string"}}
+                }
+            },
+            "ready_to_proceed": {"type": "boolean"},
+            "automation_details": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string"},
+                    "entity_id": {"type": "string"},
+                    "area": {"type": "string"},
+                    "time": {"type": "string"},
+                    "conditions": {"type": "string"}
+                }
+            }
+        },
+        "required": ["conversation_type", "language", "next_action", "user_intent", "response_needed", "ready_to_proceed"],
         "additionalProperties": False
     }
 } 
