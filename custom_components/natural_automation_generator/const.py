@@ -446,34 +446,25 @@ INTENT_ANALYSIS_JSON_SCHEMA = {
     }
 }
 
-# Entity analysis prompt for smart filtering
-ENTITY_ANALYSIS_PROMPT = """You are an expert Home Assistant analyst. Based on the user's request and the available entity summary, determine what specific entities the user might need.
+# Entity analysis prompt for smart filtering (ultra-compact to avoid MAX_TOKENS)
+ENTITY_ANALYSIS_PROMPT = """Analyze request and return JSON:
 
-ENTITY SUMMARY:
-{entities_summary}
+ENTITIES: {entities_summary}
+REQUEST: {user_request}
 
-USER REQUEST: {user_request}
-
-Analyze the request and determine:
-1. What entity domains (types) are relevant
-2. What areas/rooms are relevant  
-3. Whether we need detailed entity list or summary is enough
-
-Return JSON:
+Return:
 {{
-  "relevant_domains": ["light", "sensor"],  // Empty array if not specific
-  "relevant_areas": ["living_room"],        // Empty array if not specific  
-  "needs_detailed_list": true,              // true if need specific entity IDs
-  "reasoning": "User wants to turn on lights in living room, so need light domain and living_room area"
+  "relevant_domains": ["light"],
+  "relevant_areas": ["living_room"], 
+  "needs_detailed_list": true,
+  "reasoning": "brief explanation"
 }}
 
 Examples:
-- "Turn on living room lights" → domains:["light"], areas:["living_room"], needs_detailed_list:true
-- "What can you do?" → domains:[], areas:[], needs_detailed_list:false  
-- "Create automation for temperature" → domains:["sensor","climate"], areas:[], needs_detailed_list:true
+- "lights in living room" → {{"relevant_domains":["light"],"relevant_areas":["living_room"],"needs_detailed_list":true,"reasoning":"need lights"}}
+- "what can you do" → {{"relevant_domains":[],"relevant_areas":[],"needs_detailed_list":false,"reasoning":"general help"}}
 
-Return ONLY the JSON, no additional text.
-"""
+JSON only:"""
 
 # JSON Schema for entity analysis
 ENTITY_ANALYSIS_JSON_SCHEMA = {

@@ -67,14 +67,38 @@ class NaturalAutomationGeneratorCoordinator:
         return self._provider
 
     def _clean_json_response(self, response: str) -> str:
-        """Clean JSON response that might be wrapped in markdown code blocks."""
-        # Remove markdown code blocks if present
-        json_match = re.search(r'```(?:json)?\s*\n(.*?)\n```', response, re.DOTALL)
-        if json_match:
-            return json_match.group(1).strip()
+        """Clean JSON response, removing markdown formatting and fixing truncated JSON."""
+        # Remove markdown code blocks
+        clean = re.sub(r'```json\s*', '', response)
+        clean = re.sub(r'```\s*$', '', clean)
+        clean = clean.strip()
         
-        # If no code blocks, return original response
-        return response.strip()
+        # Try to fix truncated JSON
+        if clean and not clean.endswith('}'):
+            # Count open and close braces to try to balance
+            open_braces = clean.count('{')
+            close_braces = clean.count('}')
+            missing_braces = open_braces - close_braces
+            
+            # Try to close incomplete string if needed
+            if clean.endswith('"') and clean.count('"') % 2 == 1:
+                # Odd number of quotes means unclosed string
+                pass  # Leave as is, might be intentionally unclosed
+            elif not clean.endswith('"') and '"' in clean[-50:]:
+                # Looks like string was cut off
+                last_quote_pos = clean.rfind('"')
+                if last_quote_pos > -1:
+                    # Find the previous quote to see if string is open
+                    before_last = clean[:last_quote_pos].count('"') 
+                    if before_last % 2 == 0:  # Even means string is open
+                        clean += '"'
+            
+            # Add missing closing braces
+            clean += '}' * missing_braces
+            
+            _LOGGER.debug("Fixed truncated JSON: %s", clean)
+        
+        return clean
 
     async def get_entities_info(self) -> str:
         """Get formatted information about all entities."""
@@ -142,13 +166,13 @@ class NaturalAutomationGeneratorCoordinator:
         return "AREAS:\n" + "\n".join(areas_info)
 
     async def get_entities_summary(self) -> str:
-        """Get a compact summary of available entities to save tokens."""
+        """Get a very compact summary of available entities to save tokens."""
         entity_registry = async_get_entity_registry(self.hass)
         area_registry = async_get_area_registry(self.hass)
         
-        # Count entities by domain
+        # Count entities by domain (only major domains)
         domain_counts = {}
-        area_entities = {}
+        main_domains = {'light', 'switch', 'sensor', 'binary_sensor', 'cover', 'climate', 'media_player', 'camera', 'lock'}
         
         for entity in entity_registry.entities.values():
             if entity.disabled:
@@ -158,37 +182,24 @@ class NaturalAutomationGeneratorCoordinator:
             if state is None:
                 continue
             
-            # Count by domain
+            # Count only main domains
             domain = entity.domain
-            domain_counts[domain] = domain_counts.get(domain, 0) + 1
-            
-            # Group by area
-            area_id = entity.area_id or "no_area"
-            if area_id not in area_entities:
-                area_entities[area_id] = set()
-            area_entities[area_id].add(domain)
+            if domain in main_domains:
+                domain_counts[domain] = domain_counts.get(domain, 0) + 1
         
-        # Build compact summary
+        # Build ultra-compact summary
         summary_parts = []
         
-        # Domain counts
-        domain_list = [f"{domain}({count})" for domain, count in sorted(domain_counts.items())]
-        summary_parts.append(f"AVAILABLE DOMAINS: {', '.join(domain_list)}")
+        # Domain counts (only if > 0)
+        if domain_counts:
+            domain_list = [f"{domain}({count})" for domain, count in sorted(domain_counts.items())]
+            summary_parts.append(f"DOMAINS: {', '.join(domain_list)}")
         
-        # Available areas
-        area_names = []
-        for area in area_registry.areas.values():
-            area_names.append(area.id)
-        if area_names:
-            summary_parts.append(f"AVAILABLE AREAS: {', '.join(sorted(area_names))}")
-        
-        # Entity examples by area (very compact)
-        summary_parts.append("EXAMPLES:")
-        for area_id, domains in list(area_entities.items())[:5]:  # Only first 5 areas
-            if area_id == "no_area":
-                continue
-            domain_str = ", ".join(sorted(domains))
-            summary_parts.append(f"  - {area_id}: {domain_str}")
+        # Areas (just count)
+        area_count = len(area_registry.areas)
+        if area_count > 0:
+            area_names = [area.id for area in area_registry.areas.values()][:5]  # Only first 5
+            summary_parts.append(f"AREAS({area_count}): {', '.join(area_names)}")
         
         return "\n".join(summary_parts)
 
@@ -534,8 +545,10 @@ class NaturalAutomationGeneratorCoordinator:
                 _LOGGER.debug("Entity analysis for '%s': %s", user_request, analysis)
             except json.JSONDecodeError as json_err:
                 _LOGGER.error("Failed to parse entity analysis JSON: %s", json_err)
-                # Fallback to full entity list
-                return await self.get_entities_info()
+                _LOGGER.error("Raw response: %s", response)
+                # If JSON parsing failed, likely due to MAX_TOKENS - return summary only
+                _LOGGER.warning("Entity analysis failed, returning summary only to avoid MAX_TOKENS")
+                return entities_summary
             
             # Step 3: Return appropriate entity information
             if not analysis.get("needs_detailed_list", True):
@@ -556,7 +569,11 @@ class NaturalAutomationGeneratorCoordinator:
                     
         except Exception as err:
             _LOGGER.error("Error in smart entity info: %s", err)
-            # Fallback to regular entity info
+            # If we have entity summary already, return it to avoid another API call
+            if 'entities_summary' in locals():
+                _LOGGER.warning("Returning summary due to error to avoid further MAX_TOKENS issues")
+                return entities_summary
+            # Last resort - return regular entity info (but this might also hit MAX_TOKENS)
             return await self.get_entities_info()
 
  
