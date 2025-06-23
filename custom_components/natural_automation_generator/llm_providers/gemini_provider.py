@@ -1,6 +1,7 @@
 """Google Gemini LLM Provider for Natural Automation Generator."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any
@@ -24,18 +25,33 @@ class GeminiProvider(BaseLLMProvider):
     async def _initialize_client(self) -> None:
         """Initialize the Gemini client."""
         try:
-            from google import genai
+            # Import google.genai in executor to avoid blocking the event loop
+            def _import_and_create_client():
+                """Import genai and create client in executor."""
+                try:
+                    _LOGGER.debug("Importing google.genai library...")
+                    from google import genai
+                    _LOGGER.debug("Successfully imported google.genai")
+                    
+                    api_key = self._get_config_value(CONF_API_KEY)
+                    if not api_key:
+                        raise ValueError("Gemini API key not configured")
+                    
+                    _LOGGER.debug("Creating Gemini client with API key (length: %d)", len(api_key))
+                    client = genai.Client(api_key=api_key)
+                    _LOGGER.debug("Successfully created Gemini client: %s", type(client))
+                    return client
+                except ImportError as err:
+                    _LOGGER.error("Google GenAI library not installed: %s", err)
+                    raise
+                except Exception as err:
+                    _LOGGER.error("Failed to initialize Gemini client: %s", err)
+                    raise
             
-            api_key = self._get_config_value(CONF_API_KEY)
-            if not api_key:
-                raise ValueError("Gemini API key not configured")
+            # Run the import and client creation in executor
+            self._client = await self.hass.async_add_executor_job(_import_and_create_client)
             
-            self._client = genai.Client(api_key=api_key)
-            
-            _LOGGER.debug("Gemini client initialized with new SDK")
-        except ImportError as err:
-            _LOGGER.error("Google GenAI library not installed: %s", err)
-            raise
+            _LOGGER.debug("Gemini client initialized successfully")
         except Exception as err:
             _LOGGER.error("Failed to initialize Gemini client: %s", err)
             raise
@@ -55,21 +71,36 @@ class GeminiProvider(BaseLLMProvider):
             max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
             temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
             
-            # Generate content using new SDK with optimized settings
-            response = self._client.models.generate_content(
-                model=model_name,
-                contents=full_prompt,
-                config={
-                    "max_output_tokens": max_tokens,
-                    "temperature": temperature,
-                    "top_k": 1,  # Greedy decoding for deterministic automation generation
-                    "top_p": 0.1,  # Low nucleus sampling for focused, accurate results
-                    "stop_sequences": ["```", "---"]  # Stop at common YAML delimiters
-                }
-            )
+            # Generate content using new SDK with optimized settings (in executor)
+            def _generate_content():
+                """Generate content in executor to avoid blocking."""
+                try:
+                    config = {
+                        "max_output_tokens": max_tokens,
+                        "temperature": temperature,
+                        "top_k": 1,  # Greedy decoding for deterministic automation generation
+                        "top_p": 0.1,  # Low nucleus sampling for focused, accurate results
+                        "stop_sequences": ["```", "---"]  # Stop at common YAML delimiters
+                    }
+                    _LOGGER.debug("Calling Gemini API for automation with model: %s, config: %s", model_name, config)
+                    response = self._client.models.generate_content(
+                        model=model_name,
+                        contents=full_prompt,
+                        config=config
+                    )
+                    _LOGGER.debug("Raw Gemini API automation response: %s", response)
+                    return response
+                except Exception as api_err:
+                    _LOGGER.error("Gemini API automation call failed: %s", api_err)
+                    raise
             
-            if not response.text:
-                raise ValueError("Empty response from Gemini")
+            response = await self.hass.async_add_executor_job(_generate_content)
+            
+            _LOGGER.debug("Gemini automation response object: %s", response)
+            _LOGGER.debug("Gemini automation response text: %s", getattr(response, 'text', 'No text attribute'))
+            
+            if not hasattr(response, 'text') or not response.text:
+                raise ValueError(f"Empty response from Gemini. Response object: {response}")
             
             # Extract YAML from the response
             yaml_config = self._extract_yaml_from_response(response.text)
@@ -255,14 +286,29 @@ class GeminiProvider(BaseLLMProvider):
                     config["top_k"] = 1
                     config["top_p"] = 0.1
             
-            response = self._client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=config
-            )
+            # Generate content in executor to avoid blocking
+            def _generate_response():
+                """Generate response in executor to avoid blocking."""
+                try:
+                    _LOGGER.debug("Calling Gemini API with model: %s, config: %s", model_name, config)
+                    response = self._client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=config
+                    )
+                    _LOGGER.debug("Raw Gemini API response: %s", response)
+                    return response
+                except Exception as api_err:
+                    _LOGGER.error("Gemini API call failed: %s", api_err)
+                    raise
             
-            if not response.text:
-                raise ValueError("Empty response from Gemini")
+            response = await self.hass.async_add_executor_job(_generate_response)
+            
+            _LOGGER.debug("Gemini response object: %s", response)
+            _LOGGER.debug("Gemini response text: %s", getattr(response, 'text', 'No text attribute'))
+            
+            if not hasattr(response, 'text') or not response.text:
+                raise ValueError(f"Empty response from Gemini. Response object: {response}")
             
             _LOGGER.debug("Successfully generated response")
             return response.text.strip()

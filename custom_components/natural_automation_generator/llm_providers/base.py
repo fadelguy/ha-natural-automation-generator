@@ -55,10 +55,7 @@ class BaseLLMProvider(ABC):
         try:
             await self._ensure_client_initialized()
             # Perform a simple test request
-            await self.generate_automation(
-                "You are a Home Assistant automation generator.",
-                "Test connection"
-            )
+            await self.generate_response("Test connection")
             return True
         except Exception as err:
             _LOGGER.error("Connection test failed for %s: %s", self.provider_name, err)
