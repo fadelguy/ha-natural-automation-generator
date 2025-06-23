@@ -24,31 +24,17 @@ class GeminiProvider(BaseLLMProvider):
     async def _initialize_client(self) -> None:
         """Initialize the Gemini client."""
         try:
-            import google.generativeai as genai
+            from google import genai
             
             api_key = self._get_config_value(CONF_API_KEY)
             if not api_key:
                 raise ValueError("Gemini API key not configured")
             
-            genai.configure(api_key=api_key)
+            self._client = genai.Client(api_key=api_key)
             
-            model_name = self._get_config_value(CONF_MODEL, "gemini-1.5-flash")
-            
-            # Configure generation parameters
-            generation_config = genai.types.GenerationConfig(
-                max_output_tokens=self._get_config_value(CONF_MAX_TOKENS, 1500),
-                temperature=self._get_config_value(CONF_TEMPERATURE, 0.1),
-                response_mime_type="text/plain"
-            )
-            
-            self._client = genai.GenerativeModel(
-                model_name=model_name,
-                generation_config=generation_config
-            )
-            
-            _LOGGER.debug("Gemini client initialized with model: %s", model_name)
+            _LOGGER.debug("Gemini client initialized with new SDK")
         except ImportError as err:
-            _LOGGER.error("Google Generative AI library not installed: %s", err)
+            _LOGGER.error("Google GenAI library not installed: %s", err)
             raise
         except Exception as err:
             _LOGGER.error("Failed to initialize Gemini client: %s", err)
@@ -64,8 +50,23 @@ class GeminiProvider(BaseLLMProvider):
             # Combine system prompt and user description
             full_prompt = f"{system_prompt}\n\nUser Request: {user_description}"
             
-            # Generate content
-            response = await self._client.generate_content_async(full_prompt)
+            # Get model configuration
+            model_name = self._get_config_value(CONF_MODEL, "gemini-2.5-flash")
+            max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
+            temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
+            
+            # Generate content using new SDK
+            response = self._client.models.generate_content(
+                model=model_name,
+                contents=full_prompt,
+                config={
+                    "max_output_tokens": max_tokens,
+                    "temperature": temperature,
+                    "thinking_config": {
+                        "thinking_budget": 0  # Disable thinking for faster response
+                    }
+                }
+            )
             
             if not response.text:
                 raise ValueError("Empty response from Gemini")
@@ -135,24 +136,28 @@ class GeminiProvider(BaseLLMProvider):
         """Generate a text response from the LLM."""
         await self._ensure_client_initialized()
         
-        temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
-        max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
-        
         try:
             _LOGGER.debug("Generating response with Gemini")
             
-            generation_config = {
-                "temperature": temperature,
-                "max_output_tokens": max_tokens,
-            }
+            # Get model configuration
+            model_name = self._get_config_value(CONF_MODEL, "gemini-2.5-flash")
+            max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
+            temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
             
             # Note: Gemini doesn't support JSON schema yet, so we ignore it for now
             if json_schema:
                 _LOGGER.warning("JSON schema not supported for Gemini provider yet")
             
-            response = await self._client.generate_content_async(
-                prompt,
-                generation_config=generation_config
+            response = self._client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config={
+                    "max_output_tokens": max_tokens,
+                    "temperature": temperature,
+                    "thinking_config": {
+                        "thinking_budget": 0  # Disable thinking for faster response
+                    }
+                }
             )
             
             if not response.text:

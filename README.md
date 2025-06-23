@@ -24,7 +24,7 @@ Just tell it what you want, and it creates the automation for you.
 ## ✨ What It Does
 
 - 🗣️ **Chat naturally**: "Turn on lights when I get home"
-- 🤖 **AI creates automation**: Uses OpenAI GPT models
+- 🤖 **AI creates automation**: Uses OpenAI GPT or Google Gemini models
 - 📝 **Saves automatically**: Straight to your `automations.yaml`
 - 🌐 **Multi-language**: English & Hebrew supported
 - 🎙️ **Voice ready**: Works with Home Assistant voice assistants
@@ -42,8 +42,11 @@ Just tell it what you want, and it creates the automation for you.
 
 1. **Settings** → **Integrations** → **Add Integration**
 2. Search **"Natural Automation Generator"**
-3. Enter your **OpenAI API key** ([Get one here](https://platform.openai.com/api-keys))
-4. Done! 🎉
+3. Choose your **AI Provider**: OpenAI or Google Gemini
+4. Enter your **API key**:
+   - OpenAI: [Get key here](https://platform.openai.com/api-keys)
+   - Gemini: [Get key here](https://aistudio.google.com/app/apikey)
+5. Done! 🎉
 
 ## 🎯 How to Use
 
@@ -73,11 +76,16 @@ Name: Turn on bathroom light at midnight (Auto Generated)
 
 ## 💰 Costs
 
-**Need OpenAI API key** ([Get one here](https://platform.openai.com/))
+### OpenAI ([Get key here](https://platform.openai.com/))
 
 - **GPT-4o-mini**: ~$0.01 per automation (recommended)
 - **GPT-4o**: ~$0.05 per automation
 - **GPT-4.1**: ~$0.08 per automation
+
+### Google Gemini ([Get key here](https://aistudio.google.com/app/apikey))
+
+- **Gemini 2.5 Flash**: ~$0.005 per automation (cheapest!)
+- **Gemini 2.5 Pro**: ~$0.02 per automation
 
 ## 🛠️ Issues?
 

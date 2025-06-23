@@ -28,7 +28,7 @@ from .const import (
 )
 from .llm_providers.base import BaseLLMProvider
 from .llm_providers.openai_provider import OpenAIProvider
-# from .llm_providers.gemini_provider import GeminiProvider  # Disabled for now due to dependency issues
+from .llm_providers.gemini_provider import GeminiProvider
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,10 +49,10 @@ class NaturalAutomationGeneratorCoordinator:
         
         if provider_type == PROVIDER_OPENAI:
             self._provider = OpenAIProvider(self.hass, self.entry)
-        # elif provider_type == PROVIDER_GEMINI:
-        #     self._provider = GeminiProvider(self.hass, self.entry)  # Disabled for now
+        elif provider_type == PROVIDER_GEMINI:
+            self._provider = GeminiProvider(self.hass, self.entry)
         else:
-            raise ValueError(f"Unsupported provider type: {provider_type}. Only OpenAI is currently supported.")
+            raise ValueError(f"Unsupported provider type: {provider_type}. Both OpenAI and Gemini are supported.")
         
         _LOGGER.debug("Set up LLM provider: %s", provider_type)
 

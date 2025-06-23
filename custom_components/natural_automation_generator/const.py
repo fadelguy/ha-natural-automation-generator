@@ -25,11 +25,10 @@ OPENAI_MODELS = [
     "gpt-4o-mini"
 ]
 
-# Gemini Models
+# Gemini Models (New 2.5 series only)
 GEMINI_MODELS = [
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-    "gemini-pro"
+    "gemini-2.5-flash",
+    "gemini-2.5-pro"
 ]
 
 # Service names

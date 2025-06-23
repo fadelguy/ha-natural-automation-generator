@@ -29,7 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_LLM_PROVIDER, default=PROVIDER_OPENAI): vol.In([PROVIDER_OPENAI]),
+        vol.Required(CONF_LLM_PROVIDER, default=PROVIDER_OPENAI): vol.In([PROVIDER_OPENAI, PROVIDER_GEMINI]),
         vol.Required(CONF_API_KEY): str,
     }
 )
@@ -43,6 +43,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     # Test the API connection
     if provider == PROVIDER_OPENAI:
         await _test_openai_connection(api_key)
+    elif provider == PROVIDER_GEMINI:
+        await _test_gemini_connection(api_key)
     else:
         raise CannotConnect("Unsupported provider")
     
@@ -68,11 +70,17 @@ async def _test_openai_connection(api_key: str) -> None:
 async def _test_gemini_connection(api_key: str) -> None:
     """Test Gemini API connection."""
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
+        from google import genai
+        client = genai.Client(api_key=api_key)
         # Test with a simple request
-        models = genai.list_models()
-        list(models)  # Force evaluation
+        client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents="Hello",
+            config={
+                "max_output_tokens": 10,
+                "temperature": 0.1,
+            }
+        )
     except Exception as err:
         _LOGGER.error("Failed to connect to Gemini: %s", err)
         raise CannotConnect from err
@@ -108,8 +116,8 @@ class NaturalAutomationGeneratorConfigFlow(config_entries.ConfigFlow, domain=DOM
             provider = user_input[CONF_LLM_PROVIDER]
             if provider == PROVIDER_OPENAI:
                 user_input[CONF_MODEL] = OPENAI_MODELS[0]  # gpt-4o
-            # elif provider == PROVIDER_GEMINI:
-            #     user_input[CONF_MODEL] = GEMINI_MODELS[0]  # gemini-1.5-flash
+            elif provider == PROVIDER_GEMINI:
+                user_input[CONF_MODEL] = GEMINI_MODELS[0]  # gemini-2.5-flash
             
             # Set default values
             user_input[CONF_MAX_TOKENS] = DEFAULT_MAX_TOKENS
@@ -141,13 +149,16 @@ class NaturalAutomationGeneratorOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Manage the options."""
         provider = self.config_entry.data[CONF_LLM_PROVIDER]
-        available_models = OPENAI_MODELS  # Only OpenAI supported for now
+        available_models = OPENAI_MODELS if provider == PROVIDER_OPENAI else GEMINI_MODELS
         
         if user_input is not None:
             # If API key was changed, validate it and update config entry
             if CONF_API_KEY in user_input and user_input[CONF_API_KEY] != self.config_entry.data.get(CONF_API_KEY):
                 try:
-                    await _test_openai_connection(user_input[CONF_API_KEY])
+                    if provider == PROVIDER_OPENAI:
+                        await _test_openai_connection(user_input[CONF_API_KEY])
+                    elif provider == PROVIDER_GEMINI:
+                        await _test_gemini_connection(user_input[CONF_API_KEY])
                     # Update the config entry data with new API key
                     self.hass.config_entries.async_update_entry(
                         self.config_entry,
