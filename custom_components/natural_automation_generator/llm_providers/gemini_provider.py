@@ -55,16 +55,16 @@ class GeminiProvider(BaseLLMProvider):
             max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
             temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
             
-            # Generate content using new SDK
+            # Generate content using new SDK with optimized settings
             response = self._client.models.generate_content(
                 model=model_name,
                 contents=full_prompt,
                 config={
                     "max_output_tokens": max_tokens,
                     "temperature": temperature,
-                    "thinking_config": {
-                        "thinking_budget": 0  # Disable thinking for faster response
-                    }
+                    "top_k": 1,  # Greedy decoding for deterministic automation generation
+                    "top_p": 0.1,  # Low nucleus sampling for focused, accurate results
+                    "stop_sequences": ["```", "---"]  # Stop at common YAML delimiters
                 }
             )
             
@@ -154,9 +154,8 @@ class GeminiProvider(BaseLLMProvider):
                 config={
                     "max_output_tokens": max_tokens,
                     "temperature": temperature,
-                    "thinking_config": {
-                        "thinking_budget": 0  # Disable thinking for faster response
-                    }
+                    "top_k": 40,  # Default balanced setting for general responses
+                    "top_p": 0.95  # Default nucleus sampling for diverse but coherent responses
                 }
             )
             
