@@ -132,6 +132,75 @@ class GeminiProvider(BaseLLMProvider):
         except yaml.YAMLError as err:
             raise ValueError(f"Invalid YAML format: {err}") from err
 
+    def _convert_schema_to_gemini_format(self, json_schema: dict) -> dict:
+        """Convert JSON schema to Gemini's response schema format."""
+        if not json_schema:
+            return None
+            
+        # Extract the actual schema from OpenAI function format if needed
+        if "schema" in json_schema:
+            schema = json_schema["schema"]
+        else:
+            schema = json_schema
+            
+        def convert_type(schema_type: str) -> str:
+            """Convert JSON schema types to Gemini types."""
+            type_mapping = {
+                "string": "STRING",
+                "number": "NUMBER", 
+                "integer": "INTEGER",
+                "boolean": "BOOLEAN",
+                "array": "ARRAY",
+                "object": "OBJECT"
+            }
+            return type_mapping.get(schema_type, "STRING")
+        
+        def convert_properties(properties: dict) -> dict:
+            """Recursively convert properties."""
+            converted = {}
+            for key, prop in properties.items():
+                converted_prop = {"type": convert_type(prop.get("type", "string"))}
+                
+                if "description" in prop:
+                    converted_prop["description"] = prop["description"]
+                
+                if "enum" in prop:
+                    converted_prop["enum"] = prop["enum"]
+                
+                if prop.get("type") == "array" and "items" in prop:
+                    converted_prop["items"] = convert_schema_part(prop["items"])
+                
+                if prop.get("type") == "object" and "properties" in prop:
+                    converted_prop["properties"] = convert_properties(prop["properties"])
+                    if "required" in prop:
+                        converted_prop["required"] = prop["required"]
+                
+                converted[key] = converted_prop
+            
+            return converted
+        
+        def convert_schema_part(schema_part: dict) -> dict:
+            """Convert a schema part recursively."""
+            converted = {"type": convert_type(schema_part.get("type", "string"))}
+            
+            if "description" in schema_part:
+                converted["description"] = schema_part["description"]
+            
+            if "enum" in schema_part:
+                converted["enum"] = schema_part["enum"]
+            
+            if schema_part.get("type") == "array" and "items" in schema_part:
+                converted["items"] = convert_schema_part(schema_part["items"])
+            
+            if schema_part.get("type") == "object" and "properties" in schema_part:
+                converted["properties"] = convert_properties(schema_part["properties"])
+                if "required" in schema_part:
+                    converted["required"] = schema_part["required"]
+            
+            return converted
+        
+        return convert_schema_part(schema)
+
     async def generate_response(self, prompt: str, json_schema: dict = None) -> str:
         """Generate a text response from the LLM."""
         await self._ensure_client_initialized()
@@ -144,19 +213,29 @@ class GeminiProvider(BaseLLMProvider):
             max_tokens = self._get_config_value(CONF_MAX_TOKENS, 1500)
             temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
             
-            # Note: Gemini doesn't support JSON schema yet, so we ignore it for now
+            # Build config
+            config = {
+                "max_output_tokens": max_tokens,
+                "temperature": temperature,
+                "top_k": 40,  # Default balanced setting for general responses
+                "top_p": 0.95  # Default nucleus sampling for diverse but coherent responses
+            }
+            
+            # Add JSON schema if provided
             if json_schema:
-                _LOGGER.warning("JSON schema not supported for Gemini provider yet")
+                _LOGGER.debug("Using JSON schema for structured output")
+                gemini_schema = self._convert_schema_to_gemini_format(json_schema)
+                if gemini_schema:
+                    config["response_mime_type"] = "application/json"
+                    config["response_schema"] = gemini_schema
+                    # Adjust parameters for more deterministic JSON output
+                    config["top_k"] = 1
+                    config["top_p"] = 0.1
             
             response = self._client.models.generate_content(
                 model=model_name,
                 contents=prompt,
-                config={
-                    "max_output_tokens": max_tokens,
-                    "temperature": temperature,
-                    "top_k": 40,  # Default balanced setting for general responses
-                    "top_p": 0.95  # Default nucleus sampling for diverse but coherent responses
-                }
+                config=config
             )
             
             if not response.text:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -62,6 +63,16 @@ class NaturalAutomationGeneratorCoordinator:
         if self._provider is None:
             raise RuntimeError("LLM provider not initialized")
         return self._provider
+
+    def _clean_json_response(self, response: str) -> str:
+        """Clean JSON response that might be wrapped in markdown code blocks."""
+        # Remove markdown code blocks if present
+        json_match = re.search(r'```(?:json)?\s*\n(.*?)\n```', response, re.DOTALL)
+        if json_match:
+            return json_match.group(1).strip()
+        
+        # If no code blocks, return original response
+        return response.strip()
 
     async def get_entities_info(self) -> str:
         """Get formatted information about all entities."""
@@ -152,9 +163,10 @@ class NaturalAutomationGeneratorCoordinator:
             
             response = await self.provider.generate_response(prompt, ANALYSIS_JSON_SCHEMA)
             
-            # Parse JSON response (should be clean JSON now)
+            # Clean and parse JSON response
             try:
-                analysis_result = json.loads(response)
+                clean_response = self._clean_json_response(response)
+                analysis_result = json.loads(clean_response)
                 _LOGGER.debug("Analysis result for '%s': %s", user_request, analysis_result)
                 return {
                     "success": True,
@@ -238,9 +250,10 @@ class NaturalAutomationGeneratorCoordinator:
             
             response = await self.provider.generate_response(prompt, INTENT_ANALYSIS_JSON_SCHEMA)
             
-            # Parse JSON response (should be clean JSON now)
+            # Clean and parse JSON response
             try:
-                intent_result = json.loads(response)
+                clean_response = self._clean_json_response(response)
+                intent_result = json.loads(clean_response)
                 _LOGGER.debug("Intent analysis for '%s': %s", user_response, intent_result)
                 return {
                     "success": True,
