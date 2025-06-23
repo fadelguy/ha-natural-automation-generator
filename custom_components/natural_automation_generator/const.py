@@ -3,7 +3,7 @@
 # Basic integration info
 DOMAIN = "natural_automation_generator"
 NAME = "Natural Automation Generator"
-VERSION = "2.2.0"
+VERSION = "2.2.1"
 
 # Configuration and services
 DEFAULT_NAME = NAME
