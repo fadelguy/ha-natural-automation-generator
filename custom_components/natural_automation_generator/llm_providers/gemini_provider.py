@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from ..const import CONF_API_KEY, CONF_MAX_TOKENS, CONF_MODEL, CONF_TEMPERATURE, GEMINI_DEFAULT_MAX_TOKENS
+from ..const import CONF_API_KEY, CONF_MAX_TOKENS, CONF_MODEL, CONF_TEMPERATURE, DEFAULT_MAX_TOKENS
 from .base import BaseLLMProvider
 
 _LOGGER = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ User Request: {user_description}"""
             
             # Get model configuration
             model_name = self._get_config_value(CONF_MODEL, "gemini-2.5-flash")
-            max_tokens = self._get_config_value(CONF_MAX_TOKENS, GEMINI_DEFAULT_MAX_TOKENS)
+            max_tokens = self._get_config_value(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)
             temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
             
             # Generate content using new SDK with optimized settings (in executor)
@@ -291,7 +291,7 @@ User Request: {user_description}"""
             
             # Get model configuration
             model_name = self._get_config_value(CONF_MODEL, "gemini-2.5-flash")
-            max_tokens = self._get_config_value(CONF_MAX_TOKENS, GEMINI_DEFAULT_MAX_TOKENS)
+            max_tokens = self._get_config_value(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)
             temperature = self._get_config_value(CONF_TEMPERATURE, 0.1)
             
             # Build config
