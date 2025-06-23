@@ -645,4 +645,109 @@ class NaturalAutomationGeneratorCoordinator:
                 "error": str(err)
             }
 
+    async def analyze_request_with_history(self, user_request: str, conversation_history: str) -> dict[str, Any]:
+        """Analyze user request with conversation history for better context understanding."""
+        try:
+            entities_info = await self.get_smart_entities_info(user_request)
+            areas_info = await self.get_areas_info()
+            
+            # Enhanced prompt that includes conversation history
+            prompt = f"""
+You classify user requests with conversation context.
+
+📦 Entities: {entities_info}
+📍 Areas: {areas_info}
+🗣 Current User Request: {user_request}
+📋 Conversation History:
+{conversation_history}
+
+⚠️ CRITICAL: Use ONLY exact entity IDs from the entities list above.
+🌐 ALWAYS respond in the same language as the user's request.
+
+Analyze the current request in context of the conversation history. 
+If this is a follow-up question or continuation, understand the full context.
+If the user is referring to something mentioned earlier, include that context.
+
+Return JSON:
+{{
+  "is_automation_request": true/false,
+  "language": "he/en",
+  "understood": {{
+    "action": "turn_on",
+    "entity_type": "light", 
+    "area": "living_room",
+    "time": "evening",
+    "conditions": "",
+    "context_from_history": "what was understood from previous messages"}},
+  "missing_info": [],
+  "ambiguous_entities": {{ "light": ["light.living1", "light.living2"] }},
+  "needs_clarification": true/false
+}}
+
+Only return JSON.
+"""
+            
+            response = await self.provider.generate_response(prompt, ANALYSIS_JSON_SCHEMA)
+            
+            # Clean and parse JSON response
+            try:
+                clean_response = self._clean_json_response(response)
+                analysis_result = json.loads(clean_response)
+                _LOGGER.debug("Analysis with history for '%s': %s", user_request, analysis_result)
+                return {
+                    "success": True,
+                    "analysis": analysis_result
+                }
+            except json.JSONDecodeError as json_err:
+                _LOGGER.error("Failed to parse analysis JSON: %s", json_err)
+                _LOGGER.error("Raw response: %s", response)
+                return {
+                    "success": False,
+                    "error": f"Invalid JSON response: {json_err}"
+                }
+        except Exception as err:
+            _LOGGER.error("Failed to analyze request with history: %s", err)
+            return {
+                "success": False,
+                "error": str(err)
+            }
+
+    async def generate_general_response_with_history(self, user_request: str, conversation_history: str) -> dict[str, Any]:
+        """Generate response for non-automation requests with conversation context."""
+        try:
+            entities_info = await self.get_smart_entities_info(user_request)
+            areas_info = await self.get_areas_info()
+            
+            prompt = f"""
+Answer the user's question with full conversation context.
+
+🗣 Current Request: {user_request}
+📋 Conversation History:
+{conversation_history}
+📦 Entities: {entities_info}
+📍 Areas: {areas_info}
+
+🌐 ALWAYS respond in the same language as the user's request.
+Consider the full conversation context when answering.
+If the user is asking a follow-up question, understand what they're referring to from the history.
+Give a helpful, contextual answer - maximum 3-4 sentences.
+Only provide entity/area lists if specifically asked.
+
+Return helpful response only.
+"""
+            
+            response = await self.provider.generate_response(prompt)
+            
+            _LOGGER.debug("Generated contextual response for: %s", user_request)
+            return {
+                "success": True,
+                "response": response.strip()
+            }
+        except Exception as err:
+            _LOGGER.error("Failed to generate contextual response: %s", err)
+            return {
+                "success": False,
+                "error": str(err)
+            }
+
  

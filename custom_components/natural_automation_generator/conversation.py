@@ -162,8 +162,11 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         # Update progress: Analyzing request
         await _update_progress_entity(self.hass, agent_id, "🔍 Analyzing automation request...")
         
-        # Analyze the request
-        analysis_result = await self._coordinator.analyze_request(user_text)
+        # Build conversation history for context
+        conversation_history = self._build_conversation_history(chat_log)
+        
+        # Analyze the request with conversation history
+        analysis_result = await self._coordinator.analyze_request_with_history(user_text, conversation_history)
         
         if not analysis_result["success"]:
             context.step = STEP_ERROR
@@ -187,6 +190,22 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             # Update progress: Generating response
             await _update_progress_entity(self.hass, agent_id, "💬 Generating response...")
             return await self._generate_general_response(user_text, chat_log, agent_id)
+
+    def _build_conversation_history(self, chat_log: conversation.ChatLog) -> str:
+        """Build a formatted conversation history from chat log."""
+        history_parts = []
+        
+        for content in chat_log.content:
+            if hasattr(content, 'content') and content.content:
+                # Determine if it's user or assistant message
+                if hasattr(content, 'agent_id') and content.agent_id:
+                    # Assistant message
+                    history_parts.append(f"Assistant: {content.content}")
+                else:
+                    # User message
+                    history_parts.append(f"User: {content.content}")
+        
+        return "\n".join(history_parts) if history_parts else "No previous conversation"
 
     async def _generate_clarification(
         self, 
@@ -318,7 +337,10 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         # Update progress: Generating response
         await _update_progress_entity(self.hass, agent_id, "💬 Generating response...")
         
-        response_result = await self._coordinator.generate_general_response(user_request)
+        # Build conversation history
+        conversation_history = self._build_conversation_history(chat_log)
+        
+        response_result = await self._coordinator.generate_general_response_with_history(user_request, conversation_history)
         
         if response_result["success"]:
             await _update_progress_entity(self.hass, agent_id, "💬 Response ready")
