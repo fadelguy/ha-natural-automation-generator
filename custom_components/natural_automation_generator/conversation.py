@@ -15,6 +15,8 @@ import yaml
 
 from .const import (
     DOMAIN,
+    NAME,
+    VERSION,
     STEP_ANALYSIS,
     STEP_AWAITING_APPROVAL,
     STEP_CLARIFICATION,
@@ -81,10 +83,10 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         """Return device info."""
         return {
             "identifiers": {(DOMAIN, self._config_entry.entry_id)},
-            "name": "Natural Automation Generator",
+            "name": NAME,
             "manufacturer": "Natural Automation Generator",
             "model": "Automation Generator",
-            "sw_version": "1.2.7",
+            "sw_version": VERSION,
         }
 
     async def _async_handle_message(
@@ -104,14 +106,21 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             
             # Handle different conversation steps
             if context.step == STEP_ANALYSIS:
+                # Add progress message
+                await self._add_progress_message(chat_log, user_input.agent_id, "🔍 מנתח את הבקשה...")
                 response_text = await self._handle_initial_request(context, user_input.text)
             elif context.step == STEP_CLARIFICATION:
+                await self._add_progress_message(chat_log, user_input.agent_id, "💭 מעבד את התשובה...")
                 response_text = await self._handle_clarification_response(context, user_input.text)
             elif context.step == STEP_AWAITING_APPROVAL:
+                await self._add_progress_message(chat_log, user_input.agent_id, "⚡ מעבד את האישור...")
                 response_text = await self._handle_approval_response(context, user_input.text)
+            elif context.step == "welcome":
+                response_text = await self._handle_welcome(context)
             else:
                 # Handle non-automation requests (entity listing, help, etc.)
-                response_text = await self._handle_general_request(user_input.text, "en")
+                await self._add_progress_message(chat_log, user_input.agent_id, "📋 מכין מידע...")
+                response_text = await self._handle_general_request(user_input.text, "he")
             
             # Add to chat log
             chat_log.async_add_assistant_content_without_tools(
@@ -198,27 +207,37 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         context.analysis_results = analysis
         context.language = analysis.get("language", "en")
         
-        # Check if this is actually an automation request
-        if not analysis.get("is_automation_request", False):
-            # Handle as general request
+        # Check if this is automation-related
+        if analysis.get("intent") != "create_automation":
+            # This is a general request, not automation
             context.step = "general"
             return await self._handle_general_request(user_text, context.language)
         
+        # Check if we need clarification
         if analysis.get("needs_clarification", False):
-            # Need clarification
             context.step = STEP_CLARIFICATION
-            clarification_result = await self._coordinator.generate_clarification(user_text, analysis)
+            context.needs_clarification = True
+            
+            # Generate clarification questions
+            clarification_result = await self._coordinator.generate_clarification(
+                user_text, analysis
+            )
             
             if clarification_result["success"]:
                 context.last_question = clarification_result["question"]
                 return clarification_result["question"]
             else:
                 context.step = STEP_ERROR
-                return await self._generate_error_response(context.language, clarification_result.get("error", "Unknown error"))
+                return await self._generate_error_response(
+                    context.language, clarification_result.get("error", "Failed to generate clarification")
+                )
         else:
-            # No clarification needed, show preview
+            # We have enough information, show preview
             context.step = STEP_PREVIEW
-            context.collected_info = analysis.get("understood", {})
+            # Store the information in context
+            context.collected_info.update(analysis.get("extracted_info", {}))
+            context.collected_info["original_request"] = user_text
+            
             return await self._generate_preview(context)
 
     async def _handle_clarification_response(self, context: ConversationContext, user_text: str) -> str:
@@ -364,12 +383,14 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
 
     async def _handle_general_request(self, user_text: str, language: str = "en") -> str:
         """Handle non-automation requests like entity listing, help, etc."""
-        general_result = await self._coordinator.generate_general_response(user_text, language)
+        result = await self._coordinator.generate_general_response(user_text, language)
         
-        if general_result["success"]:
-            return general_result["response"]
+        if result["success"]:
+            return result["response"]
         else:
-            return await self._generate_error_response(language, general_result.get("error", "Unknown error"))
+            return await self._generate_error_response(language, result.get("error", "Unknown error"))
+    
+
 
     async def _generate_error_response(self, language: str, error: str) -> str:
         """Generate error response using LLM."""
@@ -465,3 +486,12 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         except Exception as err:
             _LOGGER.error("Failed to save automation: %s", err)
             raise 
+
+    async def _add_progress_message(self, chat_log: conversation.ChatLog, agent_id: str, message: str) -> None:
+        """Add a progress message to the chat."""
+        chat_log.async_add_assistant_content_without_tools(
+            conversation.AssistantContent(
+                agent_id=agent_id,
+                content=message,
+            )
+        ) 

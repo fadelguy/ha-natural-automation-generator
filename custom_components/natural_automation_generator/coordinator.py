@@ -527,10 +527,11 @@ class NaturalAutomationGeneratorCoordinator:
             if not user_request:
                 return await self.get_entities_summary()
             
+
             # Step 1: Get entity summary
             entities_summary = await self.get_entities_summary()
             
-            # Step 2: Analyze what entities are needed
+            # Step 2: Analyze what entities are needed for automation
             prompt = ENTITY_ANALYSIS_PROMPT.format(
                 entities_summary=entities_summary,
                 user_request=user_request

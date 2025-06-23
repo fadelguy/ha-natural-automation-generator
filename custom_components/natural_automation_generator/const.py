@@ -1,7 +1,32 @@
 """Constants for the Natural Automation Generator integration."""
 
-# Integration domain
+# Basic integration info
 DOMAIN = "natural_automation_generator"
+NAME = "Natural Automation Generator"
+VERSION = "2.1.2"
+
+# Configuration and services
+DEFAULT_NAME = "Natural Automation Generator"
+SERVICE_GENERATE_AUTOMATION = "generate_automation"
+
+# Conversation flow steps
+STEP_ANALYSIS = "analysis"
+STEP_CLARIFICATION = "clarification"
+STEP_PREVIEW = "preview"
+STEP_AWAITING_APPROVAL = "awaiting_approval"
+STEP_CREATING = "creating"
+STEP_COMPLETED = "completed"
+STEP_ERROR = "error"
+
+# Automation filename
+AUTOMATIONS_FILE = "automations.yaml"
+
+# Default LLM settings
+DEFAULT_PROVIDER = "openai"
+DEFAULT_MODEL_OPENAI = "gpt-4"
+DEFAULT_MODEL_GEMINI = "gemini-1.5-flash"
+DEFAULT_MAX_TOKENS = 500
+DEFAULT_TEMPERATURE = 0.7
 
 # Configuration flow constants
 CONF_LLM_PROVIDER = "llm_provider"
@@ -52,15 +77,6 @@ ERROR_API_KEY_REQUIRED = "API key is required"
 ERROR_GENERATION_FAILED = "Failed to generate automation"
 ERROR_INVALID_YAML = "Generated YAML is invalid"
 ERROR_SAVE_FAILED = "Failed to save automation"
-
-# Conversation steps
-STEP_ANALYSIS = "analysis"
-STEP_CLARIFICATION = "clarification"
-STEP_PREVIEW = "preview_ready"
-STEP_AWAITING_APPROVAL = "awaiting_approval"
-STEP_CREATING = "creating"
-STEP_COMPLETED = "completed"
-STEP_ERROR = "error"
 
 # System prompt template for automation generation (final step)
 SYSTEM_PROMPT_TEMPLATE = """You are an expert Home Assistant automation generator. Your task is to create valid YAML automation configurations based on natural language descriptions.
@@ -187,18 +203,20 @@ USER LANGUAGE: {language}
 ENTITIES INFO: {entities}
 AREAS INFO: {areas}
 
-Respond helpfully to their request in their language. Examples of what you can help with:
+Analyze the user's request and respond appropriately:
+
+FOR ENTITY/DEVICE LISTING REQUESTS:
+If the user is asking to see their devices/entities/sensors/lights/etc, provide a comprehensive list using the ENTITIES INFO provided. Format it nicely with:
+- Overview of the system
+- Detailed entity information organized by type
+- Helpful tips on how to use these entities for automations
 
 FOR GENERAL HELP QUESTIONS ("How can I assist?", "What can you do?"):
 - Explain that you can help create Home Assistant automations
 - Give examples: "I can help you create automations like turning on lights when you arrive home, closing blinds at sunset, etc."
 - Invite them to describe what they want to automate
 
-FOR DEVICE/ENTITY QUESTIONS:
-- List available devices if they ask
-- Explain what entities are available in their system
-
-FOR HELP REQUESTS:
+FOR CAPABILITY QUESTIONS:
 - Explain your automation creation capabilities
 - Give concrete examples of automations you can create
 - Ask what they would like to automate
@@ -206,11 +224,11 @@ FOR HELP REQUESTS:
 IMPORTANT:
 - Respond in the user's detected language naturally
 - Be helpful and friendly 
-- DO NOT suggest specific automations unless they ask
-- Focus on explaining your capabilities and asking what THEY want to automate
 - Use appropriate tone and emojis for the language
 - For Hebrew: Write in Hebrew naturally
 - For English: Write in English naturally
+- When showing entities, make it visually appealing with emojis and formatting
+- Always include helpful tips on how to use the information for automations
 
 Return ONLY the response text, no JSON or additional formatting.
 """
