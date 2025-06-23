@@ -63,8 +63,15 @@ class GeminiProvider(BaseLLMProvider):
         try:
             _LOGGER.debug("Generating automation with Gemini")
             
-            # Combine system prompt and user description
-            full_prompt = f"{system_prompt}\n\nUser Request: {user_description}"
+            # Enhance prompt with stronger entity validation for Gemini
+            enhanced_prompt = f"""{system_prompt}
+
+⚠️ CRITICAL FOR GEMINI: You MUST use ONLY the exact entity IDs listed above.
+DO NOT invent or create new entity IDs that are not in the AVAILABLE ENTITIES list.
+If you need a light entity, use ONLY the ones starting with 'light.' from the list above.
+NEVER create entities like 'light.living_room_main' or 'light.living_room_accent' - these do not exist!
+
+User Request: {user_description}"""
             
             # Get model configuration
             model_name = self._get_config_value(CONF_MODEL, "gemini-2.5-flash")
@@ -85,7 +92,7 @@ class GeminiProvider(BaseLLMProvider):
                     _LOGGER.debug("Calling Gemini API for automation with model: %s, config: %s", model_name, config)
                     response = self._client.models.generate_content(
                         model=model_name,
-                        contents=full_prompt,
+                        contents=enhanced_prompt,  # Use enhanced prompt
                         config=config
                     )
                     _LOGGER.debug("Raw Gemini API automation response: %s", response)
@@ -107,6 +114,9 @@ class GeminiProvider(BaseLLMProvider):
             
             # Validate YAML
             self._validate_yaml(yaml_config)
+            
+            # Additional entity validation for Gemini
+            await self._validate_entities_exist(yaml_config)
             
             _LOGGER.debug("Successfully generated automation YAML")
             return yaml_config
@@ -315,4 +325,92 @@ class GeminiProvider(BaseLLMProvider):
             
         except Exception as err:
             _LOGGER.error("Gemini response generation failed: %s", err)
-            raise 
+            raise
+
+    async def _validate_entities_exist(self, yaml_content: str) -> None:
+        """Validate that entities referenced in YAML actually exist in Home Assistant."""
+        try:
+            parsed = yaml.safe_load(yaml_content)
+            if not isinstance(parsed, dict):
+                return
+            
+            # Extract entity IDs from the YAML
+            entity_ids = self._extract_entity_ids_from_yaml(parsed)
+            if not entity_ids:
+                return
+            
+            # Get current entities from Home Assistant
+            from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
+            entity_registry = async_get_entity_registry(self.hass)
+            existing_entities = {entity.entity_id for entity in entity_registry.entities.values()}
+            
+            # Also check state registry for additional entities
+            all_states = self.hass.states.async_all()
+            existing_entities.update(state.entity_id for state in all_states)
+            
+            # Check for non-existent entities
+            missing_entities = []
+            for entity_id in entity_ids:
+                if entity_id not in existing_entities:
+                    missing_entities.append(entity_id)
+            
+            if missing_entities:
+                # Try to suggest similar entities
+                suggestions = self._suggest_similar_entities(missing_entities, existing_entities)
+                error_msg = f"Gemini generated non-existent entities: {missing_entities}"
+                if suggestions:
+                    error_msg += f". Did you mean: {suggestions}"
+                raise ValueError(error_msg)
+                
+        except yaml.YAMLError:
+            # If YAML is invalid, let the other validation catch it
+            return
+    
+    def _extract_entity_ids_from_yaml(self, yaml_dict: dict) -> set[str]:
+        """Extract all entity IDs from a YAML automation dictionary."""
+        entity_ids = set()
+        
+        def extract_from_value(value):
+            if isinstance(value, str) and ('.' in value and 
+                any(value.startswith(domain + '.') for domain in 
+                    ['light', 'switch', 'sensor', 'binary_sensor', 'cover', 'fan', 'climate', 'media_player', 'camera', 'lock', 'alarm_control_panel'])):
+                entity_ids.add(value)
+            elif isinstance(value, dict):
+                for v in value.values():
+                    extract_from_value(v)
+            elif isinstance(value, list):
+                for item in value:
+                    extract_from_value(item)
+        
+        extract_from_value(yaml_dict)
+        return entity_ids
+    
+    def _suggest_similar_entities(self, missing_entities: list[str], existing_entities: set[str]) -> dict[str, str]:
+        """Suggest similar entities for missing ones."""
+        suggestions = {}
+        
+        for missing in missing_entities:
+            missing_domain = missing.split('.')[0] if '.' in missing else ''
+            missing_name = missing.split('.')[1] if '.' in missing else missing
+            
+            # Find entities with same domain
+            same_domain = [e for e in existing_entities if e.startswith(missing_domain + '.')]
+            
+            # Find the most similar one
+            best_match = None
+            best_score = 0
+            
+            for entity in same_domain:
+                entity_name = entity.split('.')[1]
+                # Simple similarity based on common characters
+                common = len(set(missing_name.lower()) & set(entity_name.lower()))
+                score = common / max(len(missing_name), len(entity_name))
+                
+                if score > best_score:
+                    best_score = score
+                    best_match = entity
+            
+            if best_match and best_score > 0.3:  # Only suggest if reasonably similar
+                suggestions[missing] = best_match
+        
+        return suggestions 

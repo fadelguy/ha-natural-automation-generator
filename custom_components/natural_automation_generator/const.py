@@ -123,6 +123,11 @@ AVAILABLE ENTITIES:
 AVAILABLE AREAS:
 {areas}
 
+⚠️ IMPORTANT: The entities listed above are the ONLY entities that exist in this system.
+DO NOT suggest or reference entities that are not in the list above.
+If the user mentions "living room light" - check the EXACT entity IDs available (like light.living_room_big, light.living_room_small).
+NEVER assume entity names like "light.living_room_main" or "light.living_room_accent" - use only what's listed!
+
 USER REQUEST: {user_request}
 
 CRITICAL: Only classify as automation request if the user explicitly wants to CREATE AN AUTOMATION or AUTOMATE something.
@@ -163,10 +168,10 @@ Analyze the request and return JSON with the following structure:
 
 Focus on identifying:
 1. Whether this is an automation request or general query (BE STRICT!)
-2. Multiple entities that match the description
+2. Multiple entities that match the description - USE ONLY ENTITY IDs FROM THE LIST ABOVE
 3. Vague time references ("at night", "in the morning")  
 4. Missing trigger conditions
-5. Ambiguous entity references
+5. Ambiguous entity references - but suggest only entities that actually exist
 
 Return ONLY the JSON, no additional text.
 """
@@ -273,6 +278,8 @@ Return ONLY the error message text, no JSON or additional formatting.
 
 # Clarification prompt template for generating follow-up questions
 CLARIFICATION_PROMPT_TEMPLATE = """You are a helpful Home Assistant automation assistant. Generate a clarifying question in the user's language based on the analysis results.
+
+⚠️ CRITICAL: Use ONLY the exact entity IDs from the system. DO NOT invent entity names!
 
 USER'S LANGUAGE: {language}
 ORIGINAL REQUEST: {original_request}
