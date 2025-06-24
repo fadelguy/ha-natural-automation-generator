@@ -3,32 +3,20 @@ from __future__ import annotations
 
 import logging
 import uuid
+import yaml
 from dataclasses import dataclass, field
-from typing import Any, Dict, Literal
+from typing import Any, Dict
 
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import intent
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-import yaml
 
 from .const import (
     DOMAIN,
     NAME,
     VERSION,
-    STEP_ANALYSIS,
-    STEP_AWAITING_APPROVAL,
-    STEP_CLARIFICATION,
-    STEP_COMPLETED,
-    STEP_CREATING,
-    STEP_ERROR,
-    STEP_PREVIEW,
-    STEP_ANALYZING,
-    STEP_CLARIFYING,
-    STEP_COLLECTING_INFO,
-    STEP_INITIAL,
-    STEP_CREATING_AUTOMATION,
 )
 from .coordinator import NaturalAutomationGeneratorCoordinator
 
@@ -39,14 +27,8 @@ _LOGGER = logging.getLogger(__name__)
 class ConversationContext:
     """Context for ongoing conversation."""
     conversation_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    original_request: str = ""
-    language: str = "en"
-    step: str = STEP_INITIAL
-    collected_info: Dict[str, Any] = field(default_factory=dict)
-    analysis_results: Dict[str, Any] = field(default_factory=dict)
-    needs_clarification: bool = False
-    last_question: str = ""
-    attempt_count: int = 0
+    stored_automation_yaml: str = ""
+    stored_automation_name: str = ""
 
 
 async def async_setup_entry(
@@ -79,9 +61,9 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         self._conversations: Dict[str, ConversationContext] = {}
 
     @property
-    def supported_languages(self) -> list[str] | Literal["*"]:
+    def supported_languages(self) -> list[str]:
         """Return supported languages."""
-        return "*"  # Support all languages
+        return ["*"]  # Support all languages
 
     @property
     def device_info(self) -> dict[str, Any]:
@@ -99,12 +81,8 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
-        """Handle incoming user message."""
+        """Handle incoming user message with unified approach."""
         user_text = user_input.text.strip()
-        agent_id = user_input.agent_id or "unknown"
-        
-        # Update progress: Starting analysis
-        await _update_progress_entity(self.hass, agent_id, "🔍 Analyzing request...")
         
         _LOGGER.debug("Handling message: %s", user_text)
 
@@ -112,84 +90,51 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         context = self._get_conversation_context(user_input.conversation_id)
         
         try:
-            if context.step == STEP_INITIAL:
-                # Update progress: Analyzing with AI
-                await _update_progress_entity(self.hass, agent_id, "🧠 Processing with AI...")
-                return await self._handle_initial_request(context, user_text, chat_log, agent_id)
+            # Build conversation history
+            conversation_history = self._build_conversation_history(chat_log)
             
-            elif context.step == STEP_CLARIFYING:
-                # Update progress: Processing clarification
-                await _update_progress_entity(self.hass, agent_id, "💭 Processing clarification...")
-                return await self._handle_clarification_response(context, user_text, chat_log, agent_id)
+            # Single unified LLM call
+            result = await self._coordinator.handle_unified_conversation(user_text, conversation_history)
             
-            elif context.step == STEP_AWAITING_APPROVAL:
-                # Update progress: Processing approval
-                await _update_progress_entity(self.hass, agent_id, "✅ Processing approval...")
-                return await self._handle_approval_response(context, user_text, chat_log, agent_id)
+            if not result["success"]:
+                return self._create_conversation_result(f"Error: {result.get('error', 'Unknown error')}")
             
-            else:
-                # Update progress: Error handling
-                await _update_progress_entity(self.hass, agent_id, "❌ Error occurred")
-                return await self._handle_error(context, "Unknown conversation state", chat_log, agent_id)
+            response_data = result["result"]
+            
+            # Handle automation YAML storage/replacement
+            if response_data.get("automation_yaml"):
+                if response_data.get("is_confirmed"):
+                    # User confirmed - save the stored automation
+                    if context.stored_automation_yaml:
+                        try:
+                            automation_config = yaml.safe_load(context.stored_automation_yaml)
+                            await self._save_automation(automation_config)
+                            
+                            # Clear stored automation
+                            context.stored_automation_yaml = ""
+                            context.stored_automation_name = ""
+                            
+                        except Exception as err:
+                            _LOGGER.error("Failed to save automation: %s", err)
+                            return self._create_conversation_result(f"Error saving automation: {err}")
+                    else:
+                        return self._create_conversation_result("No automation found to save.")
+                else:
+                    # Store/replace the automation YAML for later confirmation
+                    context.stored_automation_yaml = response_data["automation_yaml"]
+                    context.stored_automation_name = response_data["automation_name"] or "Automation"
+            
+            return self._create_conversation_result(response_data["message"])
                 
         except Exception as err:
             _LOGGER.error("Error handling message: %s", err)
-            await _update_progress_entity(self.hass, agent_id, "❌ Error occurred")
-            return await self._handle_error(context, str(err), chat_log, agent_id)
+            return self._create_conversation_result(f"Error: {str(err)}")
 
     def _get_conversation_context(self, conversation_id: str) -> ConversationContext:
         """Get existing or create new conversation context."""
         if conversation_id not in self._conversations:
-            # Create new context
-            context = ConversationContext(
-                conversation_id=conversation_id,
-                step=STEP_INITIAL
-            )
-            self._conversations[conversation_id] = context
-        
+            self._conversations[conversation_id] = ConversationContext(conversation_id=conversation_id)
         return self._conversations[conversation_id]
-
-    async def _handle_initial_request(
-        self, 
-        context: ConversationContext, 
-        user_text: str, 
-        chat_log: conversation.ChatLog, 
-        agent_id: str
-    ) -> conversation.ConversationResult:
-        """Handle the initial automation request."""
-        context.original_request = user_text
-        
-        # Update progress: Analyzing request
-        await _update_progress_entity(self.hass, agent_id, "🔍 Analyzing automation request...")
-        
-        # Build conversation history for context
-        conversation_history = self._build_conversation_history(chat_log)
-        
-        # Analyze the request with conversation history
-        analysis_result = await self._coordinator.analyze_request_with_history(user_text, conversation_history)
-        
-        if not analysis_result["success"]:
-            context.step = STEP_ERROR
-            await _update_progress_entity(self.hass, agent_id, "❌ Analysis failed")
-            return await self._generate_error_response(analysis_result.get("error", "Analysis failed"))
-        
-        analysis = analysis_result["analysis"]
-        context.language = analysis.get("language", "en")
-        
-        if analysis.get("is_automation_request", False):
-            if analysis.get("needs_clarification", False):
-                # Update progress: Preparing question
-                await _update_progress_entity(self.hass, agent_id, "❓ Preparing clarification question...")
-                return await self._generate_clarification(context, analysis, chat_log, agent_id)
-            else:
-                # Update progress: Preparing preview
-                await _update_progress_entity(self.hass, agent_id, "👀 Preparing automation preview...")
-                context.collected_info = analysis
-                return await self._generate_preview(context, chat_log, agent_id)
-        else:
-            # Update progress: Generating response
-            await _update_progress_entity(self.hass, agent_id, "💬 Generating response...")
-            return await self._generate_general_response(user_text, chat_log, agent_id)
 
     def _build_conversation_history(self, chat_log: conversation.ChatLog) -> str:
         """Build a formatted conversation history from chat log."""
@@ -207,200 +152,6 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
         
         return "\n".join(history_parts) if history_parts else "No previous conversation"
 
-    async def _generate_clarification(
-        self, 
-        context: ConversationContext, 
-        analysis: dict[str, Any], 
-        chat_log: conversation.ChatLog, 
-        agent_id: str
-    ) -> conversation.ConversationResult:
-        """Generate a clarifying question."""
-        context.step = STEP_CLARIFYING
-        context.collected_info = analysis
-        
-        # Update progress: Generating clarification question
-        await _update_progress_entity(self.hass, agent_id, "❓ Generating clarification question...")
-        
-        clarification_result = await self._coordinator.generate_clarification(
-            context.original_request, analysis
-        )
-        
-        if clarification_result["success"]:
-            await _update_progress_entity(self.hass, agent_id, "❓ Question ready")
-            return self._create_conversation_result(clarification_result["question"])
-        else:
-            context.step = STEP_ERROR
-            await _update_progress_entity(self.hass, agent_id, "❌ Failed to generate question")
-            return await self._generate_error_response(clarification_result.get("error", "Failed to generate clarification"))
-
-    async def _generate_preview(
-        self, 
-        context: ConversationContext, 
-        chat_log: conversation.ChatLog, 
-        agent_id: str
-    ) -> conversation.ConversationResult:
-        """Generate automation preview and ask for approval."""
-        _LOGGER.debug("Generating preview for context: %s", context.collected_info)
-        
-        # Update progress: Generating preview
-        await _update_progress_entity(self.hass, agent_id, "👀 Generating automation preview...")
-        
-        preview_result = await self._coordinator.generate_preview(context.collected_info)
-        
-        if preview_result["success"]:
-            context.step = STEP_AWAITING_APPROVAL
-            await _update_progress_entity(self.hass, agent_id, "👀 Preview ready - awaiting approval")
-            return self._create_conversation_result(preview_result["preview"])
-        else:
-            context.step = STEP_ERROR
-            await _update_progress_entity(self.hass, agent_id, "❌ Failed to generate preview")
-            return await self._generate_error_response(preview_result.get("error", "Unknown error"))
-
-    async def _handle_approval_response(
-        self, 
-        context: ConversationContext, 
-        user_text: str, 
-        chat_log: conversation.ChatLog, 
-        agent_id: str
-    ) -> conversation.ConversationResult:
-        """Handle user's approval/rejection/modification request."""
-        
-        # Update progress: Processing approval
-        await _update_progress_entity(self.hass, agent_id, "✅ Processing approval response...")
-        
-        # Use LLM to analyze the approval response
-        approval_analysis = await self._coordinator.analyze_approval_response(
-            context.original_request, 
-            context.collected_info, 
-            user_text
-        )
-        
-        if not approval_analysis["success"]:
-            await _update_progress_entity(self.hass, agent_id, "❌ Failed to process approval")
-            return await self._generate_error_response("Failed to process your response")
-        
-        analysis = approval_analysis["analysis"]
-        action = analysis.get("action", "unknown")
-        
-        if action == "approve":
-            # Update progress: Creating automation
-            await _update_progress_entity(self.hass, agent_id, "🛠 Creating automation...")
-            return await self._create_automation(context, chat_log, agent_id)
-        elif action == "reject":
-            # Update progress: Request cancelled
-            await _update_progress_entity(self.hass, agent_id, "🚫 Request cancelled")
-            context.step = STEP_INITIAL
-            return self._create_conversation_result(analysis.get("response", "Automation creation cancelled. How else can I help?"))
-        elif action == "modify":
-            # Update progress: Processing modifications
-            await _update_progress_entity(self.hass, agent_id, "🔄 Processing modifications...")
-            # Update context with modifications and regenerate preview
-            if "modifications" in analysis:
-                context.collected_info.update(analysis["modifications"])
-            return await self._generate_preview(context, chat_log, agent_id)
-        else:
-            await _update_progress_entity(self.hass, agent_id, "❓ Clarification needed")
-            return self._create_conversation_result(analysis.get("response", "I didn't understand your response. Please say 'yes' to approve, 'no' to cancel, or describe what you'd like to change."))
-
-    async def _create_automation(
-        self, 
-        context: ConversationContext, 
-        chat_log: conversation.ChatLog, 
-        agent_id: str
-    ) -> conversation.ConversationResult:
-        """Create the automation based on collected information."""
-        context.step = STEP_CREATING_AUTOMATION
-        
-        # Update progress: Generating automation code
-        await _update_progress_entity(self.hass, agent_id, "📝 Generating automation code...")
-        
-        creation_result = await self._coordinator.create_automation(context.collected_info, chat_log, agent_id)
-        
-        if creation_result["success"]:
-            # Update progress: Automation created successfully
-            await _update_progress_entity(self.hass, agent_id, "✅ Automation created successfully!")
-            context.step = STEP_INITIAL  # Reset for next request
-            return self._create_conversation_result(creation_result["message"])
-        else:
-            context.step = STEP_ERROR
-            await _update_progress_entity(self.hass, agent_id, "❌ Failed to create automation")
-            return await self._generate_error_response(creation_result.get("error", "Failed to create automation"))
-
-    async def _generate_general_response(
-        self, 
-        user_request: str, 
-        chat_log: conversation.ChatLog, 
-        agent_id: str
-    ) -> conversation.ConversationResult:
-        """Generate response for non-automation requests."""
-        
-        # Update progress: Generating response
-        await _update_progress_entity(self.hass, agent_id, "💬 Generating response...")
-        
-        # Build conversation history
-        conversation_history = self._build_conversation_history(chat_log)
-        
-        response_result = await self._coordinator.generate_general_response_with_history(user_request, conversation_history)
-        
-        if response_result["success"]:
-            await _update_progress_entity(self.hass, agent_id, "💬 Response ready")
-            return self._create_conversation_result(response_result["response"])
-        else:
-            await _update_progress_entity(self.hass, agent_id, "❌ Failed to generate response")
-            return await self._generate_error_response(response_result.get("error", "Failed to generate response"))
-
-    async def _handle_clarification_response(
-        self, 
-        context: ConversationContext, 
-        user_text: str, 
-        chat_log: conversation.ChatLog, 
-        agent_id: str
-    ) -> conversation.ConversationResult:
-        """Handle user's response to clarification question."""
-        
-        # Update progress: Analyzing clarification response
-        await _update_progress_entity(self.hass, agent_id, "💭 Analyzing clarification response...")
-        
-        # Use LLM to analyze the clarification response
-        analysis_result = await self._coordinator.analyze_clarification_response(
-            context.original_request,
-            context.collected_info,
-            user_text
-        )
-        
-        if not analysis_result["success"]:
-            await _update_progress_entity(self.hass, agent_id, "❌ Failed to analyze response")
-            return await self._generate_error_response("Failed to process your clarification")
-        
-        analysis = analysis_result["analysis"]
-        
-        if analysis.get("ready_for_automation", False):
-            # Update progress: Preparing preview
-            await _update_progress_entity(self.hass, agent_id, "👀 Preparing automation preview...")
-            # Update context with the resolved information
-            context.collected_info.update(analysis.get("updated_info", {}))
-            return await self._generate_preview(context, chat_log, agent_id)
-        elif analysis.get("needs_more_clarification", False):
-            # Update progress: Preparing follow-up question
-            await _update_progress_entity(self.hass, agent_id, "❓ Preparing follow-up question...")
-            # Generate another clarification question
-            return await self._generate_clarification(context, context.collected_info, chat_log, agent_id)
-        else:
-            # Update progress: Processing response
-            await _update_progress_entity(self.hass, agent_id, "💭 Processing response...")
-            # Return the LLM's response to continue the conversation
-            response = analysis.get("response", "I need more information to proceed.")
-            return self._create_conversation_result(response)
-
-    async def _generate_error_response(self, error: str) -> conversation.ConversationResult:
-        """Generate error response."""
-        return self._create_conversation_result(f"Error: {error}")
-
-    async def _handle_error(self, context: ConversationContext, error: str, chat_log, agent_id: str) -> conversation.ConversationResult:
-        """Handle error in conversation."""
-        context.step = STEP_ERROR
-        return await self._generate_error_response(error)
-
     def _create_conversation_result(self, response: str) -> conversation.ConversationResult:
         """Create a conversation result."""
         intent_response = intent.IntentResponse(language="*")
@@ -410,33 +161,12 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             conversation_id=None,
         )
 
-    async def _generate_cancellation_response(self) -> str:
-        """Generate cancellation response using LLM."""
-        cancel_result = await self._coordinator.generate_cancellation_response()
-        
-        if cancel_result["success"]:
-            return cancel_result["response"]
-        else:
-            # Fallback cancellation message - let LLM decide language based on conversation
-            return "Okay, I've cancelled the automation creation."
-
     async def _save_automation(self, automation_config: dict[str, Any]) -> None:
         """Save automation to Home Assistant."""
         try:
-            import uuid
-            import asyncio
-            
             # Generate unique ID for the automation
             if 'id' not in automation_config:
                 automation_config['id'] = str(uuid.uuid4())[:8]
-                
-            # Add auto-generated indicator to alias
-            if 'alias' in automation_config:
-                alias = automation_config['alias']
-                if not alias.endswith('(Auto Generated)'):
-                    automation_config['alias'] = f"{alias} (Auto Generated)"
-            else:
-                automation_config['alias'] = "Automation (Auto Generated)"
                 
             # Fix the structure to match Home Assistant format
             # Convert trigger -> triggers, action -> actions if needed
@@ -489,29 +219,4 @@ class NaturalAutomationConversationEntity(conversation.ConversationEntity):
             _LOGGER.error("Failed to save automation: %s", err)
             raise 
 
-    async def _add_progress_message(self, chat_log: conversation.ChatLog, agent_id: str, message: str) -> None:
-        """Add a progress message to the chat."""
-        chat_log.async_add_assistant_content_without_tools(
-            conversation.AssistantContent(
-                agent_id=agent_id,
-                content=message,
-            )
-        )
-
-# Progress message helper function
-async def _update_progress_entity(hass: HomeAssistant, agent_id: str, message: str) -> None:
-    """Update progress entity for dashboard display."""
-    try:
-        # Create or update input_text entity for progress display
-        entity_id = f"input_text.natural_automation_progress_{agent_id}"
-        await hass.services.async_call(
-            "input_text",
-            "set_value",
-            {
-                "entity_id": entity_id,
-                "value": message
-            },
-            blocking=False
-        )
-    except Exception as err:
-        _LOGGER.debug("Could not update progress entity: %s", err) 
+ 

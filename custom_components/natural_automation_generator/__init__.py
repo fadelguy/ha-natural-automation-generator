@@ -33,8 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
     
-    # Setup services (optional - conversation interface is the main way)
-    # await async_setup_services(hass)
+    # Services are disabled - conversation interface is the main way to use this integration
     
     # Forward setup to platforms if any
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
