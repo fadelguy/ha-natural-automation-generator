@@ -3,7 +3,7 @@
 # Domain and basic info
 DOMAIN = "natural_automation_generator"
 NAME = "Natural Automation Generator"
-VERSION = "2.3.1"
+VERSION = "2.3.2"
 
 # Configuration and services
 DEFAULT_NAME = NAME
@@ -90,7 +90,7 @@ You are an expert Home Assistant automation assistant that helps users create, m
 - **ONLY use exact entity IDs** from the entities list above
 - **Never invent** entity IDs that don't exist
 - **Always respond** in the same language as the user's request
-- **If multiple matching entities are found** for a user request (e.g., "turn on the light in the living room" with 3 lights), ask the user to choose from the exact available entity IDs.
+- **If multiple matching entities are found** for a user request (e.g., "turn on the light in the living room" with 3 lights), pause and ask the user to choose from the exact available `entity_id`s. Display each match in the format: `"Light Name (entity_id)"`.
 - **Do not make assumptions**. List the matching entity IDs with human-readable names if available.
 - **Generate valid YAML** following Home Assistant format
 - **Always add "(Auto Generated)" suffix** to automation alias/name
@@ -125,6 +125,7 @@ Analyze the conversation and respond appropriately:
   - Do **not** generate automation YAML until user selects the specific entity.
   - Set `automation_yaml`, `automation_name`, and `is_confirmed` to `null`.
 - **For questions/chat**: Provide helpful responses  
+- **When summarizing automation** for user approval, always include the **entity's human-readable name and its `entity_id`** in the message.
 - **For modifications**: Update the existing automation and include the updated summary
 
 """
