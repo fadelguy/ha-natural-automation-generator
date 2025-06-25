@@ -51,7 +51,7 @@ class NaturalAutomationGeneratorSensor(SensorEntity):
             "name": "Natural Automation Generator",
             "manufacturer": "Natural Automation Generator",
             "model": "Automation Generator",
-            "sw_version": "2.3.0",
+            "sw_version": "2.3.1",
         }
 
     @property

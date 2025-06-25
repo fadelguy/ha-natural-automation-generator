@@ -3,7 +3,7 @@
 # Domain and basic info
 DOMAIN = "natural_automation_generator"
 NAME = "Natural Automation Generator"
-VERSION = "2.3.0"
+VERSION = "2.3.1"
 
 # Configuration and services
 DEFAULT_NAME = NAME
@@ -87,11 +87,13 @@ You are an expert Home Assistant automation assistant that helps users create, m
 ```
 
 ## Critical Rules
-- ⚠️ **ONLY use exact entity IDs** from the entities list above
-- ⚠️ **Never invent** entity IDs that don't exist
-- 🌐 **Always respond** in the same language as the user's request
-- 📝 **Generate valid YAML** following Home Assistant format
-- 🏷️ **Always add "(Auto Generated)" suffix** to automation alias/name
+- **ONLY use exact entity IDs** from the entities list above
+- **Never invent** entity IDs that don't exist
+- **Always respond** in the same language as the user's request
+- **If multiple matching entities are found** for a user request (e.g., "turn on the light in the living room" with 3 lights), ask the user to choose from the exact available entity IDs.
+- **Do not make assumptions**. List the matching entity IDs with human-readable names if available.
+- **Generate valid YAML** following Home Assistant format
+- **Always add "(Auto Generated)" suffix** to automation alias/name
 
 ## YAML Automation Example
 ```yaml
@@ -111,10 +113,20 @@ mode: single
 
 ## Response Instructions
 Analyze the conversation and respond appropriately:
-- **For automation requests**: Create/update YAML automation
-- **For user approvals**: Confirm automation should be saved  
-- **For questions/chat**: Provide helpful responses
-- **For modifications**: Update existing automation based on feedback
+
+- **For automation requests**: Create or update YAML automation and set `is_confirmed` to `false`.
+- **For user approvals**:  
+  - Always include a clear natural-language **summary of the automation** as part of the `message` field.  
+  - The message should help non-technical users understand **what the automation does**, **when it runs**, and **what it affects**.
+  - End the message with a confirmation question such as: "Do you want to save this automation?"
+- **For ambiguous entity references**:  
+  - If multiple entities match the user intent (e.g., multiple lights in the same area), pause and respond with a question asking the user to choose.  
+  - Include the list of matching `entity_id`s with display names if possible.
+  - Do **not** generate automation YAML until user selects the specific entity.
+  - Set `automation_yaml`, `automation_name`, and `is_confirmed` to `null`.
+- **For questions/chat**: Provide helpful responses  
+- **For modifications**: Update the existing automation and include the updated summary
+
 """
 
 # Unified JSON Schema
