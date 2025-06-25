@@ -1,7 +1,7 @@
 {
   "domain": "natural_automation_generator",
   "name": "Natural Automation Generator",
-  "icon": "icon.png"
+  "icon": "icon.png",
   "codeowners": ["@fadelguy"],
   "config_flow": true,
   "dependencies": [],
