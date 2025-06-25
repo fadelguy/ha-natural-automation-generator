@@ -74,19 +74,6 @@ Name: Turn on bathroom light at midnight (Auto Generated)
 🎉 Saved to automations.yaml and active!
 ```
 
-## 💰 Costs
-
-### OpenAI ([Get key here](https://platform.openai.com/))
-
-- **GPT-4o-mini**: ~$0.01 per automation (recommended)
-- **GPT-4o**: ~$0.05 per automation
-- **GPT-4.1**: ~$0.08 per automation
-
-### Google Gemini ([Get key here](https://aistudio.google.com/app/apikey))
-
-- **Gemini 2.5 Flash**: ~$0.005 per automation (cheapest!)
-- **Gemini 2.5 Pro**: ~$0.02 per automation
-
 ## 🛠️ Issues?
 
 1. **Not working?** → Restart Home Assistant
